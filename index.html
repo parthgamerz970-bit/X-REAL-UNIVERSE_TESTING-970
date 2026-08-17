@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="X Real Universe — a real life simulation."
+    />
+    <title>X Real Universe — Main Menu</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --white: #f7f8ff;
+        --muted: rgba(232, 237, 255, 0.62);
+        --glass: rgba(0, 0, 0, 0.6);
+        --glass-heavy: rgba(0, 0, 0, 0.72);
+        --line: rgba(218, 225, 255, 0.25);
+        --cyan: #7fe9ff;
+        --violet: #b490ff;
+        --safe-top: max(22px, env(safe-area-inset-top));
+        --safe-right: max(22px, env(safe-area-inset-right));
+        --safe-bottom: max(22px, env(safe-area-inset-bottom));
+        --safe-left: max(22px, env(safe-area-inset-left));
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #05040b;
+      }
+
+      body {
+        min-width: 280px;
+        color: var(--white);
+        font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+        letter-spacing: 0.045em;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .universe-menu {
+        isolation: isolate;
+        position: relative;
+        display: grid;
+        width: 100%;
+        height: 100%;
+        min-height: 320px;
+        place-items: center;
+        overflow: hidden;
+        background: #05040b;
+      }
+
+      .universe-menu::before,
+      .universe-menu::after {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        pointer-events: none;
+        inset: 0;
+      }
+
+      .universe-menu::before {
+        background:
+          linear-gradient(180deg, rgba(3, 3, 10, 0.58) 0%, rgba(5, 3, 14, 0.18) 40%, rgba(3, 3, 9, 0.64) 100%),
+          radial-gradient(circle at 50% 42%, transparent 0%, rgba(1, 1, 8, 0.17) 52%, rgba(1, 1, 7, 0.52) 100%);
+      }
+
+      .universe-menu::after {
+        opacity: 0.18;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+        background-size: 72px 72px;
+        mask-image: linear-gradient(180deg, transparent, #000 24%, #000 76%, transparent);
+      }
+
+      .galaxy {
+        position: absolute;
+        z-index: -2;
+        inset: -4%;
+        width: 108%;
+        height: 108%;
+        object-fit: cover;
+        object-position: center;
+        filter: saturate(0.9) brightness(0.83) contrast(1.04);
+        transform: scale(1.03);
+        animation: galaxyDrift 24s ease-in-out infinite alternate;
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .menu-topline {
+        position: absolute;
+        top: var(--safe-top);
+        left: var(--safe-left);
+        right: var(--safe-right);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        pointer-events: none;
+      }
+
+      .brand-mark,
+      .build-label {
+        color: rgba(232, 237, 255, 0.6);
+        font-size: clamp(0.56rem, 0.72vw, 0.72rem);
+        font-weight: 700;
+        letter-spacing: 0.26em;
+        line-height: 1;
+        text-transform: uppercase;
+        text-shadow: 0 1px 16px rgba(0, 0, 0, 0.72);
+      }
+
+      .brand-mark {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.72rem;
+      }
+
+      .brand-mark::before {
+        content: "";
+        width: 0.45rem;
+        height: 0.45rem;
+        border: 1px solid var(--cyan);
+        box-shadow: 0 0 11px rgba(127, 233, 255, 0.65);
+        transform: rotate(45deg);
+      }
+
+      .build-label {
+        color: rgba(232, 237, 255, 0.38);
+        letter-spacing: 0.18em;
+      }
+
+      .title-block {
+        position: absolute;
+        top: clamp(58px, 10.2vh, 112px);
+        left: 50%;
+        width: min(90vw, 760px);
+        transform: translateX(-50%);
+        text-align: center;
+        pointer-events: none;
+        animation: titleRise 900ms cubic-bezier(0.18, 0.8, 0.24, 1) both;
+      }
+
+      .title {
+        margin: 0;
+        color: var(--white);
+        font-family: "Segoe UI", Arial, sans-serif;
+        font-size: clamp(1.9rem, 4.6vw, 4.55rem);
+        font-weight: 300;
+        letter-spacing: clamp(0.18em, 0.85vw, 0.34em);
+        line-height: 1;
+        text-indent: clamp(0.18em, 0.85vw, 0.34em);
+        text-shadow:
+          0 0 8px rgba(255, 255, 255, 0.28),
+          0 0 28px rgba(152, 119, 255, 0.48),
+          0 4px 24px rgba(0, 0, 0, 0.7);
+      }
+
+      .tagline {
+        margin: clamp(0.85rem, 1.8vh, 1.35rem) 0 0;
+        color: rgba(237, 241, 255, 0.72);
+        font-size: clamp(0.56rem, 0.9vw, 0.82rem);
+        font-weight: 700;
+        letter-spacing: clamp(0.24em, 0.74vw, 0.48em);
+        line-height: 1;
+        text-indent: clamp(0.24em, 0.74vw, 0.48em);
+        text-shadow: 0 2px 14px rgba(0, 0, 0, 0.85);
+      }
+
+      .menu-stack {
+        display: flex;
+        width: min(78vw, 315px);
+        flex-direction: column;
+        align-items: stretch;
+        gap: clamp(0.66rem, 1.6vh, 1rem);
+        margin-top: clamp(3.4rem, 6vh, 5.7rem);
+        animation: menuRise 900ms 150ms cubic-bezier(0.18, 0.8, 0.24, 1) both;
+      }
+
+      .menu-button,
+      .settings-button {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        color: rgba(247, 248, 255, 0.94);
+        background: var(--glass);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.08),
+          0 10px 30px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(12px) saturate(1.2);
+        -webkit-backdrop-filter: blur(12px) saturate(1.2);
+        cursor: pointer;
+        outline: none;
+        overflow: hidden;
+        transition:
+          transform 220ms ease,
+          border-color 220ms ease,
+          background-color 220ms ease,
+          color 220ms ease,
+          box-shadow 220ms ease;
+      }
+
+      .menu-button {
+        min-height: clamp(3.15rem, 8vh, 4.6rem);
+        padding: 0.8rem 1.35rem;
+        font-size: clamp(0.7rem, 1vw, 0.9rem);
+        font-weight: 700;
+        letter-spacing: 0.27em;
+        text-indent: 0.27em;
+      }
+
+      .menu-button::before,
+      .settings-button::before {
+        position: absolute;
+        content: "";
+        inset: 0;
+        background: linear-gradient(110deg, transparent 24%, rgba(255, 255, 255, 0.12) 50%, transparent 76%);
+        transform: translateX(-125%);
+        transition: transform 500ms ease;
+      }
+
+      .menu-button::after,
+      .settings-button::after {
+        position: absolute;
+        content: "";
+        inset: 4px;
+        border: 1px solid transparent;
+        pointer-events: none;
+        transition: border-color 220ms ease;
+      }
+
+      .menu-button:hover,
+      .menu-button:focus-visible,
+      .settings-button:hover,
+      .settings-button:focus-visible {
+        z-index: 1;
+        border-color: rgba(127, 233, 255, 0.74);
+        color: #fff;
+        background: rgba(8, 8, 18, 0.76);
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.14),
+          0 0 0 1px rgba(127, 233, 255, 0.1),
+          0 0 28px rgba(98, 178, 255, 0.2),
+          0 12px 34px rgba(0, 0, 0, 0.24);
+        transform: scale(1.035);
+      }
+
+      .menu-button:hover::before,
+      .menu-button:focus-visible::before,
+      .settings-button:hover::before,
+      .settings-button:focus-visible::before {
+        transform: translateX(125%);
+      }
+
+      .menu-button:hover::after,
+      .menu-button:focus-visible::after,
+      .settings-button:hover::after,
+      .settings-button:focus-visible::after {
+        border-color: rgba(180, 144, 255, 0.35);
+      }
+
+      .menu-button:active,
+      .settings-button:active {
+        transform: scale(0.985);
+      }
+
+      .menu-button.primary {
+        border-color: rgba(180, 144, 255, 0.48);
+        background: rgba(12, 7, 25, 0.68);
+      }
+
+      .menu-button.primary::after {
+        border-color: rgba(180, 144, 255, 0.14);
+      }
+
+      .settings-button {
+        width: clamp(2.7rem, 4vw, 3.6rem);
+        height: clamp(2.7rem, 4vw, 3.6rem);
+        padding: 0;
+        border-color: rgba(218, 225, 255, 0.23);
+      }
+
+      .settings-button svg {
+        position: relative;
+        z-index: 1;
+        width: 1.15rem;
+        height: 1.15rem;
+        stroke: currentColor;
+        stroke-width: 1.45;
+        transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      .settings-button:hover svg,
+      .settings-button:focus-visible svg {
+        transform: rotate(35deg);
+      }
+
+      .settings-wrap {
+        position: absolute;
+        top: var(--safe-top);
+        right: var(--safe-right);
+        display: flex;
+        align-items: flex-end;
+        flex-direction: column;
+        gap: 0.65rem;
+        animation: fadeIn 700ms 320ms ease both;
+      }
+
+      .settings-panel {
+        width: min(74vw, 240px);
+        padding: 0.85rem 1rem;
+        border: 1px solid rgba(218, 225, 255, 0.2);
+        border-radius: 2px;
+        color: var(--muted);
+        background: var(--glass-heavy);
+        box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        font-size: 0.59rem;
+        line-height: 1.65;
+        letter-spacing: 0.12em;
+        opacity: 0;
+        transform: translateY(-5px);
+        transition: opacity 220ms ease, transform 220ms ease;
+        pointer-events: none;
+      }
+
+      .settings-panel strong {
+        display: block;
+        margin-bottom: 0.2rem;
+        color: var(--cyan);
+        font-size: 0.57rem;
+        letter-spacing: 0.2em;
+      }
+
+      .settings-panel.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .status-line {
+        position: absolute;
+        bottom: var(--safe-bottom);
+        left: var(--safe-left);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.58rem;
+        color: rgba(232, 237, 255, 0.55);
+        font-size: clamp(0.52rem, 0.7vw, 0.66rem);
+        font-weight: 700;
+        letter-spacing: 0.15em;
+        line-height: 1.4;
+        text-transform: uppercase;
+        text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+        transition: color 250ms ease;
+      }
+
+      .status-line.is-active {
+        color: rgba(221, 241, 255, 0.86);
+      }
+
+      .status-dot {
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 50%;
+        background: var(--cyan);
+        box-shadow: 0 0 9px rgba(127, 233, 255, 0.82);
+        animation: statusPulse 2.4s ease-in-out infinite;
+      }
+
+      .corner-note {
+        position: absolute;
+        right: var(--safe-right);
+        bottom: var(--safe-bottom);
+        color: rgba(232, 237, 255, 0.3);
+        font-size: clamp(0.48rem, 0.62vw, 0.58rem);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      .landscape-note {
+        display: none;
+      }
+
+      @keyframes galaxyDrift {
+        0% {
+          transform: scale(1.03) translate3d(-0.5%, -0.35%, 0);
+        }
+        100% {
+          transform: scale(1.08) translate3d(0.7%, 0.45%, 0);
+        }
+      }
+
+      @keyframes titleRise {
+        from {
+          opacity: 0;
+          transform: translate(-50%, 12px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+
+      @keyframes menuRise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes statusPulse {
+        0%,
+        100% {
+          opacity: 0.55;
+          transform: scale(0.85);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+
+      @media (max-height: 520px) and (orientation: landscape) {
+        :root {
+          --safe-top: max(14px, env(safe-area-inset-top));
+          --safe-right: max(16px, env(safe-area-inset-right));
+          --safe-bottom: max(14px, env(safe-area-inset-bottom));
+          --safe-left: max(16px, env(safe-area-inset-left));
+        }
+
+        .title-block {
+          top: 12vh;
+        }
+
+        .menu-stack {
+          width: min(38vw, 300px);
+          gap: 0.55rem;
+          margin-top: 3.2rem;
+        }
+
+        .menu-button {
+          min-height: 2.65rem;
+        }
+      }
+
+      @media (orientation: portrait) and (max-width: 700px) {
+        .landscape-note {
+          position: absolute;
+          bottom: calc(var(--safe-bottom) + 2.2rem);
+          left: 50%;
+          display: block;
+          color: rgba(232, 237, 255, 0.32);
+          font-size: 0.48rem;
+          letter-spacing: 0.16em;
+          text-align: center;
+          text-transform: uppercase;
+          transform: translateX(-50%);
+          white-space: nowrap;
+        }
+
+        .corner-note {
+          display: none;
+        }
+
+        .menu-stack {
+          width: min(78vw, 300px);
+          margin-top: 4.3rem;
+        }
+
+        .title-block {
+          top: 15vh;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          scroll-behavior: auto !important;
+          transition-duration: 0.01ms !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="universe-menu" aria-label="X Real Universe main menu">
+      <img
+        class="galaxy"
+        src="attached_assets/galaxy_1786993509195.jpg"
+        alt=""
+        aria-hidden="true"
+      />
+
+      <div class="menu-topline" aria-hidden="true">
+        <span class="brand-mark">XRU / 01</span>
+        <span class="build-label">OPEN WORLD SIMULATION</span>
+      </div>
+
+      <section class="title-block" aria-labelledby="game-title">
+        <h1 class="title" id="game-title">X REAL UNIVERSE</h1>
+        <p class="tagline">A REAL LIFE SIMULATION</p>
+      </section>
+
+      <nav class="menu-stack" aria-label="Main menu">
+        <button class="menu-button primary" type="button" data-action="play">
+          Play
+        </button>
+        <button class="menu-button" type="button" data-action="marketplace">
+          Marketplace
+        </button>
+      </nav>
+
+      <div class="settings-wrap">
+        <button
+          class="settings-button"
+          type="button"
+          aria-label="Open settings"
+          aria-expanded="false"
+          aria-controls="settings-panel"
+          data-action="settings"
+        >
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
+            <path d="m19.4 15 .05.04a1.8 1.8 0 0 1-2.55 2.55l-.04-.05a1.8 1.8 0 0 0-3.07 1.27v.07a1.8 1.8 0 0 1-3.6 0v-.07a1.8 1.8 0 0 0-3.07-1.27l-.04.05a1.8 1.8 0 0 1-2.55-2.55l.05-.04A1.8 1.8 0 0 0 5.31 12a1.8 1.8 0 0 0-1.27-3.07h-.07a1.8 1.8 0 0 1 0-3.6h.07a1.8 1.8 0 0 0 1.27-3.07l-.05-.04a1.8 1.8 0 0 1 2.55-2.55l.04.05A1.8 1.8 0 0 0 10.92 1.27V1.2a1.8 1.8 0 0 1 3.6 0v.07a1.8 1.8 0 0 0 3.07 1.27l.04-.05a1.8 1.8 0 0 1 2.55 2.55l-.05.04A1.8 1.8 0 0 0 19.4 8.93h.07a1.8 1.8 0 0 1 0 3.6h-.07A1.8 1.8 0 0 0 19.4 15Z" transform="translate(0 5) scale(.58)" />
+          </svg>
+        </button>
+        <div class="settings-panel" id="settings-panel" role="status">
+          <strong>SETTINGS</strong>
+          Audio feedback: enabled<br />
+          Display mode: adaptive landscape<br />
+          Connection: local simulation
+        </div>
+      </div>
+
+      <div class="status-line" id="status-line" role="status" aria-live="polite">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">SYSTEM READY</span>
+      </div>
+      <span class="corner-note" aria-hidden="true">SECTOR 00 : HOME</span>
+      <span class="landscape-note">Landscape view recommended</span>
+    </main>
+
+    <script>
+      (() => {
+        "use strict";
+
+        const buttons = document.querySelectorAll("button");
+        const statusLine = document.getElementById("status-line");
+        const statusText = document.getElementById("status-text");
+        const settingsPanel = document.getElementById("settings-panel");
+        const settingsButton = document.querySelector('[data-action="settings"]');
+        let audioContext;
+        let statusTimer;
+
+        function getAudioContext() {
+          if (!audioContext) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return null;
+            audioContext = new AudioContext();
+          }
+          if (audioContext.state === "suspended") {
+            audioContext.resume().catch(() => {});
+          }
+          return audioContext;
+        }
+
+        function playHoverSound() {
+          const context = getAudioContext();
+          if (!context) return;
+          const now = context.currentTime;
+          const oscillator = context.createOscillator();
+          const gain = context.createGain();
+          const filter = context.createBiquadFilter();
+
+          oscillator.type = "sine";
+          oscillator.frequency.setValueAtTime(720, now);
+          oscillator.frequency.exponentialRampToValueAtTime(1020, now + 0.09);
+          filter.type = "lowpass";
+          filter.frequency.setValueAtTime(1800, now);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.045, now + 0.012);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.13);
+
+          oscillator.connect(filter);
+          filter.connect(gain);
+          gain.connect(context.destination);
+          oscillator.start(now);
+          oscillator.stop(now + 0.14);
+        }
+
+        function playClickSound() {
+          const context = getAudioContext();
+          if (!context) return;
+          const now = context.currentTime;
+          const oscillator = context.createOscillator();
+          const subOscillator = context.createOscillator();
+          const gain = context.createGain();
+          const subGain = context.createGain();
+
+          oscillator.type = "triangle";
+          oscillator.frequency.setValueAtTime(150, now);
+          oscillator.frequency.exponentialRampToValueAtTime(52, now + 0.24);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.18, now + 0.008);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28);
+
+          subOscillator.type = "sine";
+          subOscillator.frequency.setValueAtTime(62, now);
+          subOscillator.frequency.exponentialRampToValueAtTime(34, now + 0.26);
+          subGain.gain.setValueAtTime(0.0001, now);
+          subGain.gain.exponentialRampToValueAtTime(0.12, now + 0.01);
+          subGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.31);
+
+          oscillator.connect(gain);
+          subOscillator.connect(subGain);
+          gain.connect(context.destination);
+          subGain.connect(context.destination);
+          oscillator.start(now);
+          subOscillator.start(now);
+          oscillator.stop(now + 0.3);
+          subOscillator.stop(now + 0.32);
+        }
+
+        function setStatus(message) {
+          window.clearTimeout(statusTimer);
+          statusText.textContent = message;
+          statusLine.classList.add("is-active");
+          statusTimer = window.setTimeout(() => {
+            statusText.textContent = "SYSTEM READY";
+            statusLine.classList.remove("is-active");
+          }, 2600);
+        }
+
+        buttons.forEach((button) => {
+          button.addEventListener("pointerenter", playHoverSound);
+          button.addEventListener("focus", playHoverSound);
+          button.addEventListener("click", () => {
+            playClickSound();
+            const action = button.dataset.action;
+
+            if (action === "play") {
+              setStatus("INITIALIZING UNIVERSE");
+            }
+
+            if (action === "marketplace") {
+              setStatus("MARKETPLACE LINK READY");
+            }
+
+            if (action === "settings") {
+              const isVisible = settingsPanel.classList.toggle("is-visible");
+              settingsButton.setAttribute("aria-expanded", String(isVisible));
+              setStatus(isVisible ? "SETTINGS OPEN" : "SETTINGS CLOSED");
+            }
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>

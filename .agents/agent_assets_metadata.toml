@@ -1,0 +1,9 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "1ig0kCTRWyDUjW8sQi-ni"
+uri = "file://index.html"
+type = "text"
+title = "X Real Universe Main Menu"
+description = "Standalone landscape-first index.html with animated galaxy background, glass menu buttons, responsive layout, settings panel, and Web Audio UI feedback."
