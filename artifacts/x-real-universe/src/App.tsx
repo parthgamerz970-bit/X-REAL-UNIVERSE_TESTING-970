@@ -6,10 +6,7 @@ type BrowserAudioContext = typeof AudioContext & {
 
 function UniverseMenu() {
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [status, setStatus] = useState('SYSTEM READY');
-  const [statusActive, setStatusActive] = useState(false);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const statusTimerRef = useRef<number | undefined>(undefined);
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -86,19 +83,8 @@ function UniverseMenu() {
     subOscillator.stop(now + 0.32);
   }, [getAudioContext]);
 
-  const setTemporaryStatus = useCallback((message: string) => {
-    if (statusTimerRef.current) window.clearTimeout(statusTimerRef.current);
-    setStatus(message);
-    setStatusActive(true);
-    statusTimerRef.current = window.setTimeout(() => {
-      setStatus('SYSTEM READY');
-      setStatusActive(false);
-    }, 2600);
-  }, []);
-
   useEffect(() => {
     return () => {
-      if (statusTimerRef.current) window.clearTimeout(statusTimerRef.current);
       void audioContextRef.current?.close();
     };
   }, []);
@@ -107,20 +93,16 @@ function UniverseMenu() {
     playClickSound();
 
     if (action === 'play') {
-      setTemporaryStatus('INITIALIZING UNIVERSE');
+      return;
     } else if (action === 'marketplace') {
-      setTemporaryStatus('MARKETPLACE LINK READY');
+      return;
     } else {
-      setSettingsOpen((open) => {
-        const nextOpen = !open;
-        setTemporaryStatus(nextOpen ? 'SETTINGS OPEN' : 'SETTINGS CLOSED');
-        return nextOpen;
-      });
+      setSettingsOpen((open) => !open);
     }
   };
 
   return (
-    <main className="universe-menu" aria-label="X Real Universe main menu">
+    <main className="universe-menu" aria-label="X-Virtual-Universe-Infinity main menu">
       <img
         className="galaxy"
         src="/galaxy_1786993509195.jpg"
@@ -128,14 +110,9 @@ function UniverseMenu() {
         aria-hidden="true"
       />
 
-      <div className="menu-topline" aria-hidden="true">
-        <span className="brand-mark">XRU / 01</span>
-        <span className="build-label">OPEN WORLD SIMULATION</span>
-      </div>
-
       <section className="title-block" aria-labelledby="game-title">
         <h1 className="title" id="game-title" data-testid="text-game-title">
-          X REAL UNIVERSE
+          X-VIRTUAL-UNIVERSE-INFINITY
         </h1>
         <p className="tagline" data-testid="text-tagline">
           A REAL LIFE SIMULATION
@@ -180,10 +157,7 @@ function UniverseMenu() {
           onFocus={playHoverSound}
           onClick={() => handleMenuAction('settings')}
         >
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 15.25a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5Z" />
-            <path d="m19.4 15 .05.04a1.8 1.8 0 0 1-2.55 2.55l-.04-.05a1.8 1.8 0 0 0-3.07 1.27v.07a1.8 1.8 0 0 1-3.6 0v-.07a1.8 1.8 0 0 0-3.07-1.27l-.04.05a1.8 1.8 0 0 1-2.55-2.55l.05-.04A1.8 1.8 0 0 0 5.31 12a1.8 1.8 0 0 0-1.27-3.07h-.07a1.8 1.8 0 0 1 0-3.6h.07a1.8 1.8 0 0 0 1.27-3.07l-.05-.04a1.8 1.8 0 0 1 2.55-2.55l.04.05A1.8 1.8 0 0 0 10.92 1.27V1.2a1.8 1.8 0 0 1 3.6 0v.07a1.8 1.8 0 0 0 3.07 1.27l.04-.05a1.8 1.8 0 0 1 2.55 2.55l-.05.04A1.8 1.8 0 0 0 19.4 15Z" transform="translate(0 5) scale(.58)" />
-          </svg>
+          <img src="/settings-icon.png" alt="" aria-hidden="true" />
         </button>
         <div
           className={`settings-panel${settingsOpen ? ' is-visible' : ''}`}
@@ -202,19 +176,9 @@ function UniverseMenu() {
         </div>
       </div>
 
-      <div
-        className={`status-line${statusActive ? ' is-active' : ''}`}
-        role="status"
-        aria-live="polite"
-        data-testid="status-system"
-      >
-        <span className="status-dot" aria-hidden="true" />
-        <span data-testid="text-status">{status}</span>
-      </div>
       <span className="corner-note" aria-hidden="true">
         SECTOR 00 : HOME
       </span>
-      <span className="landscape-note">Landscape view recommended</span>
     </main>
   );
 }
