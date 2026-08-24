@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "X Real Universe"
+description = "A cinematic interactive main menu for X Real Universe, a real-life simulation experience set against a drifting galaxy backdrop."
+version = "1.0.0"
+id = "artifacts/x-real-universe"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 19443
+
+[services.development]
+run = "pnpm --filter @workspace/x-real-universe run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/x-real-universe", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/x-real-universe/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19443"
+BASE_PATH = "/"
