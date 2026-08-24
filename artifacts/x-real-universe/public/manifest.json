@@ -1,0 +1,19 @@
+{
+  "name": "X-Virtual-Universe-Infinity",
+  "short_name": "X-Virtual-Universe",
+  "description": "A real life simulation.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#06050d",
+  "theme_color": "#06050d",
+  "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -176,9 +176,6 @@ function UniverseMenu() {
         </div>
       </div>
 
-      <span className="corner-note" aria-hidden="true">
-        SECTOR 00 : HOME
-      </span>
     </main>
   );
 }

@@ -7,7 +7,13 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build:offline": "pnpm run build",
+    "cap:sync": "pnpm run build && pnpm exec cap sync",
+    "cap:android": "pnpm run build && pnpm exec cap sync android && pnpm exec cap open android",
+    "cap:ios": "pnpm run build && pnpm exec cap sync ios && pnpm exec cap open ios",
+    "desktop:dev": "pnpm run build && pnpm exec electron electron/main.cjs",
+    "desktop:dist": "pnpm run build && pnpm exec electron-builder --config electron-builder.yml"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

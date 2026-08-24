@@ -28,7 +28,7 @@ if (!basePath) {
 }
 
 export default defineConfig({
-  base: basePath,
+  base: basePath === '/' ? './' : basePath,
   plugins: [
     react(),
     tailwindcss(),

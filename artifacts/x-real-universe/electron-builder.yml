@@ -1,0 +1,20 @@
+appId: com.xvirtualuniverse.infinity
+productName: X-Virtual-Universe-Infinity
+directories:
+  output: release
+files:
+  - dist/public/**/*
+  - electron/**/*
+  - package.json
+asar: true
+npmRebuild: false
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+  category: public.app-category.games
+linux:
+  target:
+    - AppImage
