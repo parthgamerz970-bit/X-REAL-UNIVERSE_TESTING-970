@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.xvirtualuniverse.infinity',
-  appName: 'X-Virtual-Universe-Infinity',
+  appId: 'com.exovanta.app',
+  appName: 'EXOVANTA',
   webDir: 'dist/public',
   bundledWebRuntime: false,
   server: {

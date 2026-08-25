@@ -102,7 +102,7 @@ function UniverseMenu() {
   };
 
   return (
-    <main className="universe-menu" aria-label="X-Virtual-Universe-Infinity main menu">
+    <main className="universe-menu" aria-label="EXOVANTA main menu">
       <img
         className="galaxy"
         src="/galaxy_1786993509195.jpg"
@@ -112,7 +112,7 @@ function UniverseMenu() {
 
       <section className="title-block" aria-labelledby="game-title">
         <h1 className="title" id="game-title" data-testid="text-game-title">
-          X-VIRTUAL-UNIVERSE-INFINITY
+          EXOVANTA
         </h1>
         <p className="tagline" data-testid="text-tagline">
           A REAL LIFE SIMULATION

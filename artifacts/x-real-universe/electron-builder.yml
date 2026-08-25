@@ -1,5 +1,5 @@
-appId: com.xvirtualuniverse.infinity
-productName: X-Virtual-Universe-Infinity
+appId: com.exovanta.app
+productName: EXOVANTA
 directories:
   output: release
 files:

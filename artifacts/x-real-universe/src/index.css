@@ -3,6 +3,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('./fonts/SpaceGrotesk-Variable.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+}
+
 :root {
   --background: 248 33% 4%;
   --foreground: 228 36% 96%;
@@ -157,7 +165,7 @@ button:focus-visible {
   margin: 0;
   color: #f7f8ff;
   font-size: clamp(1.9rem, 4.6vw, 4.55rem);
-  font-weight: 300;
+  font-weight: 400;
   letter-spacing: clamp(0.16em, 0.78vw, 0.34em);
   line-height: 1;
   text-indent: clamp(0.16em, 0.78vw, 0.34em);

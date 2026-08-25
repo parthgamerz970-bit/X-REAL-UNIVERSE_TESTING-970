@@ -1,4 +1,4 @@
-const CACHE_NAME = 'x-virtual-universe-infinity-v1';
+const CACHE_NAME = 'exovanta-v1';
 const CORE_ASSETS = [
   './',
   './index.html',
