@@ -4,9 +4,50 @@ type BrowserAudioContext = typeof AudioContext & {
   new (): AudioContext;
 };
 
+type Settings = {
+  soundEffects: boolean;
+  music: boolean;
+  uiSounds: boolean;
+  fullscreen: boolean;
+};
+
+const SETTINGS_STORAGE_KEY = 'exovanta-settings';
+const DEFAULT_SETTINGS: Settings = {
+  soundEffects: true,
+  music: true,
+  uiSounds: true,
+  fullscreen: false,
+};
+
+function readSettings(): Settings {
+  try {
+    const stored = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!stored) return DEFAULT_SETTINGS;
+
+    const parsed = JSON.parse(stored) as Partial<Settings>;
+    return {
+      soundEffects: parsed.soundEffects ?? DEFAULT_SETTINGS.soundEffects,
+      music: parsed.music ?? DEFAULT_SETTINGS.music,
+      uiSounds: parsed.uiSounds ?? DEFAULT_SETTINGS.uiSounds,
+      fullscreen: parsed.fullscreen ?? DEFAULT_SETTINGS.fullscreen,
+    };
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
 function UniverseMenu() {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useState<Settings>(() => readSettings());
   const audioContextRef = useRef<AudioContext | null>(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch {
+      // Local persistence can be unavailable in private browsing contexts.
+    }
+  }, [settings]);
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -26,6 +67,8 @@ function UniverseMenu() {
   }, []);
 
   const playHoverSound = useCallback(() => {
+    if (!settings.uiSounds) return;
+
     const context = getAudioContext();
     if (!context) return;
 
@@ -48,9 +91,11 @@ function UniverseMenu() {
     gain.connect(context.destination);
     oscillator.start(now);
     oscillator.stop(now + 0.14);
-  }, [getAudioContext]);
+  }, [getAudioContext, settings.uiSounds]);
 
   const playClickSound = useCallback(() => {
+    if (!settings.soundEffects) return;
+
     const context = getAudioContext();
     if (!context) return;
 
@@ -81,7 +126,7 @@ function UniverseMenu() {
     subOscillator.start(now);
     oscillator.stop(now + 0.3);
     subOscillator.stop(now + 0.32);
-  }, [getAudioContext]);
+  }, [getAudioContext, settings.soundEffects]);
 
   useEffect(() => {
     return () => {
@@ -98,6 +143,32 @@ function UniverseMenu() {
       return;
     } else {
       setSettingsOpen((open) => !open);
+    }
+  };
+
+  const toggleSetting = (setting: keyof Settings) => {
+    setSettings((current) => ({ ...current, [setting]: !current[setting] }));
+  };
+
+  const handleFullscreenToggle = async () => {
+    const shouldEnterFullscreen = !settings.fullscreen;
+    setSettings((current) => ({ ...current, fullscreen: shouldEnterFullscreen }));
+
+    try {
+      if (shouldEnterFullscreen) {
+        await document.documentElement.requestFullscreen?.();
+      } else if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch {
+      setSettings((current) => ({ ...current, fullscreen: Boolean(document.fullscreenElement) }));
+    }
+  };
+
+  const resetSettings = () => {
+    setSettings(DEFAULT_SETTINGS);
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => undefined);
     }
   };
 
@@ -167,12 +238,72 @@ function UniverseMenu() {
           aria-hidden={!settingsOpen}
           data-testid="panel-settings"
         >
-          <strong>SETTINGS</strong>
-          Audio feedback: enabled
-          <br />
-          Display mode: adaptive landscape
-          <br />
-          Connection: local simulation
+          <div className="settings-heading">
+            <strong>SETTINGS</strong>
+            <span>LOCAL PREFERENCES</span>
+          </div>
+          <div className="settings-options">
+            <button
+              className={`setting-row${settings.soundEffects ? ' is-on' : ' is-off'}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.soundEffects}
+              onClick={() => toggleSetting('soundEffects')}
+              onPointerEnter={playHoverSound}
+            >
+              <span className="setting-label">🔊 Sound Effects</span>
+              <span className="toggle" aria-hidden="true">
+                <span className="toggle-thumb" />
+              </span>
+              <span className="setting-state">{settings.soundEffects ? 'ON' : 'OFF'}</span>
+            </button>
+            <button
+              className={`setting-row${settings.music ? ' is-on' : ' is-off'}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.music}
+              onClick={() => toggleSetting('music')}
+              onPointerEnter={playHoverSound}
+            >
+              <span className="setting-label">🎵 Music</span>
+              <span className="toggle" aria-hidden="true">
+                <span className="toggle-thumb" />
+              </span>
+              <span className="setting-state">{settings.music ? 'ON' : 'OFF'}</span>
+            </button>
+            <button
+              className={`setting-row${settings.uiSounds ? ' is-on' : ' is-off'}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.uiSounds}
+              onClick={() => toggleSetting('uiSounds')}
+              onPointerEnter={playHoverSound}
+            >
+              <span className="setting-label">🔔 UI Sounds</span>
+              <span className="toggle" aria-hidden="true">
+                <span className="toggle-thumb" />
+              </span>
+              <span className="setting-state">{settings.uiSounds ? 'ON' : 'OFF'}</span>
+            </button>
+            <button
+              className={`setting-row${settings.fullscreen ? ' is-on' : ' is-off'}`}
+              type="button"
+              role="switch"
+              aria-checked={settings.fullscreen}
+              onClick={handleFullscreenToggle}
+              onPointerEnter={playHoverSound}
+            >
+              <span className="setting-label">🖥️ Fullscreen</span>
+              <span className="toggle" aria-hidden="true">
+                <span className="toggle-thumb" />
+              </span>
+              <span className="setting-state">{settings.fullscreen ? 'ON' : 'OFF'}</span>
+            </button>
+          </div>
+          <button className="reset-settings" type="button" onClick={resetSettings}>
+            <span aria-hidden="true">🔄</span>
+            Reset Settings
+          </button>
         </div>
       </div>
 

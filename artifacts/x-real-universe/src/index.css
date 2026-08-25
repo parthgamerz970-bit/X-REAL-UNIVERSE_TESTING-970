@@ -339,37 +339,180 @@ button:focus-visible {
 }
 
 .settings-panel {
-  width: min(74vw, 240px);
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(218, 225, 255, 0.2);
-  border-radius: 2px;
-  color: rgba(232, 237, 255, 0.62);
-  background: rgba(0, 0, 0, 0.72);
-  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  font-family: var(--app-font-mono);
-  font-size: 0.56rem;
-  line-height: 1.65;
-  letter-spacing: 0.1em;
+  width: min(88vw, 332px);
+  padding: 1.05rem;
+  border: 1px solid rgba(189, 201, 255, 0.28);
+  border-radius: 10px;
+  color: rgba(232, 237, 255, 0.82);
+  background:
+    linear-gradient(145deg, rgba(30, 28, 58, 0.72), rgba(5, 7, 19, 0.82)),
+    rgba(7, 8, 20, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 18px 46px rgba(0, 0, 0, 0.42),
+    0 0 34px rgba(101, 116, 255, 0.12);
+  backdrop-filter: blur(22px) saturate(1.35);
+  -webkit-backdrop-filter: blur(22px) saturate(1.35);
+  font-family: var(--app-font-sans);
   opacity: 0;
-  transform: translateY(-5px);
-  transition: opacity 220ms ease, transform 220ms ease;
+  transform: translateY(-8px) scale(0.97);
+  transform-origin: top right;
+  transition:
+    opacity 180ms ease,
+    transform 220ms cubic-bezier(0.22, 0.8, 0.25, 1),
+    visibility 220ms ease;
   pointer-events: none;
+  visibility: hidden;
 }
 
-.settings-panel strong {
-  display: block;
-  margin-bottom: 0.2rem;
+.settings-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(218, 225, 255, 0.12);
+}
+
+.settings-heading strong {
   color: hsl(var(--primary));
-  font-size: 0.56rem;
-  letter-spacing: 0.2em;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
+.settings-heading span {
+  color: rgba(232, 237, 255, 0.42);
+  font-family: var(--app-font-mono);
+  font-size: 0.45rem;
+  letter-spacing: 0.14em;
+}
+
+.settings-options {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem 0;
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2.3rem 1.55rem;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.45rem 0.35rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: rgba(244, 246, 255, 0.82);
+  background: transparent;
+  font-family: var(--app-font-sans);
+  font-size: 0.63rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.setting-row:hover,
+.setting-row:focus-visible {
+  border-color: rgba(189, 201, 255, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+.setting-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setting-state {
+  font-family: var(--app-font-mono);
+  font-size: 0.47rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: right;
+}
+
+.setting-row.is-on .setting-state {
+  color: rgba(159, 231, 190, 0.86);
+}
+
+.setting-row.is-off .setting-state {
+  color: rgba(239, 166, 166, 0.84);
+}
+
+.toggle {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 1.2rem;
+  align-items: center;
+  padding: 0.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  transition: background-color 200ms ease, border-color 200ms ease;
+}
+
+.setting-row.is-on .toggle {
+  border-color: rgba(130, 214, 165, 0.42);
+  background: rgba(96, 176, 126, 0.3);
+}
+
+.setting-row.is-off .toggle {
+  border-color: rgba(227, 143, 143, 0.4);
+  background: rgba(171, 81, 87, 0.3);
+}
+
+.toggle-thumb {
+  display: block;
+  width: 0.78rem;
+  height: 0.78rem;
+  border-radius: 50%;
+  background: rgba(240, 247, 255, 0.92);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.42);
+  transform: translateX(0);
+  transition: transform 200ms cubic-bezier(0.22, 0.8, 0.25, 1);
+}
+
+.setting-row.is-on .toggle-thumb {
+  transform: translateX(1.02rem);
+  background: rgba(188, 247, 207, 0.96);
+}
+
+.reset-settings {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid rgba(218, 225, 255, 0.16);
+  border-radius: 5px;
+  color: rgba(238, 241, 255, 0.66);
+  background: rgba(255, 255, 255, 0.035);
+  font-family: var(--app-font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 180ms ease, color 180ms ease, background-color 180ms ease;
+}
+
+.reset-settings:hover,
+.reset-settings:focus-visible {
+  border-color: rgba(127, 233, 255, 0.42);
+  color: rgba(247, 248, 255, 0.94);
+  background: rgba(127, 233, 255, 0.08);
+  outline: none;
 }
 
 .settings-panel.is-visible {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
   pointer-events: auto;
+  visibility: visible;
 }
 
 @keyframes galaxyDrift {
