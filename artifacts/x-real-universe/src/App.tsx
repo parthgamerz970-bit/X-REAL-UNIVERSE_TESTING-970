@@ -37,7 +37,7 @@ function readSettings(): Settings {
 }
 
 function UniverseMenu() {
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(true);
   const [settings, setSettings] = useState<Settings>(() => readSettings());
   const audioContextRef = useRef<AudioContext | null>(null);
 
