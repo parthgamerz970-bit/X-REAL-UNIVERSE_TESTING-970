@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
 
-import './index.css?settings-panel-v2';
+import './index.css?settings-panel-v3';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('./service-worker.js?settings-panel-v2', {
+    void navigator.serviceWorker.register('./service-worker.js?settings-panel-v3', {
       scope: './',
       updateViaCache: 'none',
     });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exovanta-v2-settings-panel';
+const CACHE_NAME = 'exovanta-v3-habitat-prototype';
 const CORE_ASSETS = [
   './',
   './index.html',
