@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exovanta-v3-habitat-prototype';
+const CACHE_NAME = 'exovanta-v4-camera-settings-fixes';
 const CORE_ASSETS = [
   './',
   './index.html',

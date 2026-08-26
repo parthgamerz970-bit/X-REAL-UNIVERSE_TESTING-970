@@ -64,7 +64,7 @@ function SettingRow({ label, icon: Icon, checked, onToggle, testId, onHover }: S
 }
 
 function UniverseMenu() {
-  const [settingsOpen, setSettingsOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [marketplaceOpen, setMarketplaceOpen] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [settings, setSettings] = useState<Settings>(() => readSettings());
@@ -164,7 +164,7 @@ function UniverseMenu() {
   };
 
   if (playing) {
-    return <GameWorld onExit={() => setPlaying(false)} />;
+    return <GameWorld onExit={() => { setPlaying(false); setSettingsOpen(false); }} />;
   }
 
   return (
@@ -183,7 +183,7 @@ function UniverseMenu() {
           data-testid="button-play"
           onPointerEnter={playHoverSound}
           onFocus={playHoverSound}
-          onClick={() => { playClickSound(); setPlaying(true); }}
+          onClick={() => { playClickSound(); setSettingsOpen(false); setPlaying(true); }}
         >Play</button>
         <button
           className="menu-button"

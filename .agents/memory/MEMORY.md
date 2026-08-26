@@ -1,1 +1,2 @@
 - [Workspace package installs](workspace-package-installs.md) — install artifact-specific npm packages with a filtered pnpm command so dependencies stay scoped to the target package.
+- [Offline cache versioning](offline-cache-versioning.md) — advance service-worker cache identity alongside user-facing offline UI changes.

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import * as THREE from 'three';
-import { ArrowLeft, Pause, Play, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Camera, Pause, Play, RotateCcw } from 'lucide-react';
 
 type GameWorldProps = {
   onExit: () => void;
@@ -171,6 +171,8 @@ export function GameWorld({ onExit }: GameWorldProps) {
   const onExitRef = useRef(onExit);
   const [paused, setPaused] = useState(false);
   const pausedRef = useRef(false);
+  const [firstPerson, setFirstPerson] = useState(false);
+  const firstPersonRef = useRef(false);
   const [joystick, setJoystick] = useState({ x: 0, y: 0 });
   const joystickRef = useRef({ x: 0, y: 0 });
   const keys = useRef<InputState>({ forward: false, back: false, left: false, right: false, run: false });
@@ -182,6 +184,10 @@ export function GameWorld({ onExit }: GameWorldProps) {
   const setPausedState = (value: boolean) => {
     pausedRef.current = value;
     setPaused(value);
+  };
+  const setCameraMode = (value: boolean) => {
+    firstPersonRef.current = value;
+    setFirstPerson(value);
   };
 
   useEffect(() => {
@@ -256,6 +262,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
         if (value && !event.repeat) jumpQueued = true;
         event.preventDefault();
       }
+      if (key === 'v' && value && !event.repeat) setCameraMode(!firstPersonRef.current);
       if (key === 'escape' && value && !event.repeat) setPausedState(!pausedRef.current);
     };
     const keyDown = (event: KeyboardEvent) => keyChange(event, true);
@@ -281,8 +288,19 @@ export function GameWorld({ onExit }: GameWorldProps) {
         const length = Math.hypot(inputX, inputY);
         const normalizedX = length > 1 ? inputX / length : inputX;
         const normalizedY = length > 1 ? inputY / length : inputY;
-        const forward = new THREE.Vector3(Math.sin(cameraAngles.current.yaw), 0, Math.cos(cameraAngles.current.yaw));
-        const right = new THREE.Vector3(forward.z, 0, -forward.x);
+        // The explorer's model faces local -Z (the visor is on that side).
+        // Keep the input basis aligned with that facing direction so W is
+        // always forward and the joystick matches desktop movement.
+        const forward = new THREE.Vector3(
+          -Math.sin(cameraAngles.current.yaw),
+          0,
+          -Math.cos(cameraAngles.current.yaw),
+        );
+        const right = new THREE.Vector3(
+          Math.cos(cameraAngles.current.yaw),
+          0,
+          -Math.sin(cameraAngles.current.yaw),
+        );
         movement.set(0, 0, 0).addScaledVector(right, normalizedX).addScaledVector(forward, normalizedY);
         const moving = movement.lengthSq() > 0.001;
         const speed = keys.current.run ? 6.8 : 4.1;
@@ -311,7 +329,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
           limbs.armR.rotation.x = -Math.sin(walkTime) * 0.48;
           limbs.legL.rotation.x = -Math.sin(walkTime) * 0.42;
           limbs.legR.rotation.x = Math.sin(walkTime) * 0.42;
-          player.rotation.y = Math.atan2(movement.x, movement.z);
+          player.rotation.y = Math.atan2(-movement.x, -movement.z);
         } else {
           const limbs = player.userData.limbs as Record<string, THREE.Object3D>;
           limbs.armL.rotation.x = THREE.MathUtils.damp(limbs.armL.rotation.x, 0, 8, delta);
@@ -321,21 +339,35 @@ export function GameWorld({ onExit }: GameWorldProps) {
         }
       }
 
+      player.visible = !firstPersonRef.current;
       target.set(player.position.x, player.position.y + PLAYER_HEIGHT * 0.48, player.position.z);
       const { yaw, pitch, distance } = cameraAngles.current;
-      desiredCamera.set(
-        target.x + Math.sin(yaw) * Math.cos(pitch) * distance,
-        target.y + Math.sin(pitch) * distance,
-        target.z + Math.cos(yaw) * Math.cos(pitch) * distance,
-      );
-      // Keep the follow camera above the local terrain while orbiting low or
-      // standing on one of the prototype's taller hills.
-      desiredCamera.y = Math.max(
-        desiredCamera.y,
-        terrainHeight(desiredCamera.x, desiredCamera.z) + 1.1,
-      );
+      if (firstPersonRef.current) {
+        desiredCamera.set(player.position.x, player.position.y + 2.28, player.position.z);
+      } else {
+        desiredCamera.set(
+          target.x + Math.sin(yaw) * Math.cos(pitch) * distance,
+          target.y + Math.sin(pitch) * distance,
+          target.z + Math.cos(yaw) * Math.cos(pitch) * distance,
+        );
+        // Keep the follow camera above the local terrain while orbiting low or
+        // standing on one of the prototype's taller hills.
+        desiredCamera.y = Math.max(
+          desiredCamera.y,
+          terrainHeight(desiredCamera.x, desiredCamera.z) + 1.1,
+        );
+      }
       camera.position.lerp(desiredCamera, 1 - Math.pow(0.001, delta));
-      camera.lookAt(target);
+      if (firstPersonRef.current) {
+        const lookDirection = new THREE.Vector3(
+          -Math.sin(yaw) * Math.cos(pitch),
+          Math.sin(pitch),
+          -Math.cos(yaw) * Math.cos(pitch),
+        );
+        camera.lookAt(desiredCamera.clone().addScaledVector(lookDirection, 10));
+      } else {
+        camera.lookAt(target);
+      }
       renderer.render(scene, camera);
       animation = requestAnimationFrame(frame);
     };
@@ -408,12 +440,23 @@ export function GameWorld({ onExit }: GameWorldProps) {
           <div><strong>EXOVANTA</strong><span>HABITAT 01 / FIELD TEST</span></div>
         </div>
         <div className="world-status"><span className="status-dot" />OFFLINE SIMULATION</div>
+        <button
+          className="camera-mode-button"
+          type="button"
+          data-testid="button-camera-mode"
+          aria-pressed={firstPerson}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={() => setCameraMode(!firstPersonRef.current)}
+        >
+          <Camera size={14} strokeWidth={1.7} />
+          <span>{firstPerson ? 'First person' : 'Third person'}</span>
+        </button>
         <button className="pause-button" type="button" data-testid="button-pause" onClick={() => setPausedState(!pausedRef.current)}>
           <Pause size={14} strokeWidth={1.7} /><span>Pause</span>
         </button>
       </div>
       <div className="world-crosshair" aria-hidden="true" />
-      <p className="world-hint">WASD MOVE&nbsp;&nbsp; / &nbsp;&nbsp;SHIFT RUN&nbsp;&nbsp; / &nbsp;&nbsp;SPACE JUMP&nbsp;&nbsp; / &nbsp;&nbsp;DRAG ORBIT</p>
+      <p className="world-hint">WASD MOVE&nbsp;&nbsp; / &nbsp;&nbsp;SHIFT RUN&nbsp;&nbsp; / &nbsp;&nbsp;SPACE JUMP&nbsp;&nbsp; / &nbsp;&nbsp;DRAG LOOK&nbsp;&nbsp; / &nbsp;&nbsp;V VIEW</p>
 
       <div className="mobile-controls" aria-label="Touch controls">
         <div
