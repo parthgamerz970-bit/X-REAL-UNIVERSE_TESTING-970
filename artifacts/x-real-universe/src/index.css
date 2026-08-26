@@ -205,8 +205,9 @@ button:focus-visible { outline: 1px solid hsl(var(--primary)); outline-offset: 4
 .status-dot { width:.38rem; height:.38rem; border-radius:50%; background:#bdf6cf; box-shadow:0 0 9px #bdf6cf; }
 .world-crosshair { position:absolute; top:50%; left:50%; width:16px; height:16px; transform:translate(-50%,-50%); pointer-events:none; opacity:.45; }
 .world-crosshair::before, .world-crosshair::after { content:''; position:absolute; background:rgba(238,255,248,.9); } .world-crosshair::before { top:7px; left:0; width:16px; height:1px; } .world-crosshair::after { top:0; left:7px; width:1px; height:16px; }
-.camera-mode-button { pointer-events:auto; display:inline-flex; align-items:center; gap:.5rem; padding:.63rem .78rem; border:1px solid rgba(225,242,235,.3); color:#effff8; background:rgba(12,29,37,.46); font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; backdrop-filter:blur(10px); transition:background-color 180ms ease,transform 180ms ease,border-color 180ms ease; }
+.camera-mode-button, .screenshot-button { pointer-events:auto; display:inline-flex; align-items:center; gap:.5rem; padding:.63rem .78rem; border:1px solid rgba(225,242,235,.3); color:#effff8; background:rgba(12,29,37,.46); font-size:.58rem; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; backdrop-filter:blur(10px); transition:background-color 180ms ease,transform 180ms ease,border-color 180ms ease; }
 .camera-mode-button:hover, .camera-mode-button:focus-visible { border-color:rgba(191,253,222,.72); background:rgba(20,49,56,.67); transform:translateY(-1px); outline:none; }
+.screenshot-button:hover, .screenshot-button:focus-visible { border-color:rgba(191,253,222,.72); background:rgba(20,49,56,.67); transform:translateY(-1px); outline:none; }
 .pause-button { pointer-events:auto; display:inline-flex; align-items:center; gap:.55rem; padding:.63rem .78rem; border:1px solid rgba(225,242,235,.3); color:#effff8; background:rgba(12,29,37,.46); font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; cursor:pointer; backdrop-filter:blur(10px); transition:background-color 180ms ease,transform 180ms ease,border-color 180ms ease; }
 .pause-button:hover, .pause-button:focus-visible { border-color:rgba(191,253,222,.72); background:rgba(20,49,56,.67); transform:translateY(-1px); outline:none; }
 .world-hint { position:absolute; left:50%; bottom: max(22px,env(safe-area-inset-bottom)); transform:translateX(-50%); padding:.5rem .75rem; border:1px solid rgba(225,242,235,.2); color:rgba(239,255,246,.76); background:rgba(12,29,37,.28); font-family:var(--app-font-mono); font-size:.47rem; letter-spacing:.11em; white-space:nowrap; pointer-events:none; backdrop-filter:blur(7px); }
@@ -234,7 +235,7 @@ button:focus-visible { outline: 1px solid hsl(var(--primary)); outline-offset: 4
 
 @media (max-width: 700px), (pointer: coarse) {
   .mobile-controls { display:block; } .world-hint { display:none; } .touch-camera-area { display:block; }
-  .world-status { display:none; } .camera-mode-button { padding:.7rem; } .camera-mode-button span { display:none; } .pause-button { padding:.7rem; } .pause-button span { display:none; }
+  .world-status { display:none; } .camera-mode-button, .screenshot-button { padding:.7rem; } .camera-mode-button span, .screenshot-button span { display:none; } .pause-button { padding:.7rem; } .pause-button span { display:none; }
 }
 @media (min-width: 701px) and (pointer: fine) { .touch-camera-area { display:none; } }
 @media (max-height:520px) and (orientation:landscape) {

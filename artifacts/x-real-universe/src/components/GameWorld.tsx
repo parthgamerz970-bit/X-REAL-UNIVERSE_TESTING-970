@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type PointerEvent, type WheelEvent } from 'react';
 import * as THREE from 'three';
-import { ArrowLeft, Camera, Pause, Play, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Camera, Download, Pause, Play, RotateCcw } from 'lucide-react';
 
 type GameWorldProps = {
   onExit: () => void;
@@ -17,13 +17,109 @@ type InputState = {
 const WORLD_SIZE = 86;
 const GRID_SIZE = 48;
 const PLAYER_HEIGHT = 2.55;
+const FIRST_PERSON_PITCH_LIMITS = { min: -0.9, max: 0.86 };
+const THIRD_PERSON_PITCH_LIMITS = { min: 0.12, max: 1.05 };
+
+type LakeDefinition = {
+  x: number;
+  z: number;
+  radiusX: number;
+  radiusZ: number;
+  depth: number;
+};
+
+const LAKES: LakeDefinition[] = [
+  { x: -24, z: -9, radiusX: 6.4, radiusZ: 3.9, depth: 0.8 },
+  { x: 24, z: 14, radiusX: 4.8, radiusZ: 3.1, depth: 0.66 },
+];
+
+type RockPatch = {
+  x: number;
+  z: number;
+  radiusX: number;
+  radiusZ: number;
+  count: number;
+};
+
+const ROCK_PATCHES: RockPatch[] = [
+  { x: -30, z: -23, radiusX: 7.8, radiusZ: 5.3, count: 7 },
+  { x: 29, z: -20, radiusX: 6.6, radiusZ: 4.4, count: 6 },
+  { x: -31, z: 25, radiusX: 7.4, radiusZ: 5.6, count: 7 },
+  { x: 30, z: 27, radiusX: 5.9, radiusZ: 4.8, count: 6 },
+];
+
+function baseTerrainHeight(x: number, z: number) {
+  const broad = Math.sin(x * 0.12 + 0.8) * 0.38 + Math.cos(z * 0.1 - 0.35) * 0.3;
+  const cross = Math.sin((x + z) * 0.075) * 0.22 + Math.cos((x - z) * 0.055) * 0.16;
+  const hillA = Math.max(0, 1 - Math.hypot(x + 15, z - 11) / 22) ** 2 * 4.2;
+  const hillB = Math.max(0, 1 - Math.hypot(x - 19, z + 18) / 20) ** 2 * 3.2;
+  const shoulder = Math.max(0, 1 - Math.hypot(x - 24, z - 4) / 25) ** 2 * 0.75;
+  const basin = Math.max(0, 1 - Math.hypot(x - 3, z - 4) / 13) ** 2 * 0.95;
+  const detail = Math.sin(x * 0.47 + z * 0.13) * 0.075 + Math.cos(z * 0.42 - x * 0.18) * 0.055;
+  return Math.max(-0.45, broad + cross + hillA + hillB + shoulder - basin + detail);
+}
 
 function terrainHeight(x: number, z: number) {
-  const ridge = Math.sin(x * 0.16 + 0.8) * 0.42 + Math.cos(z * 0.13) * 0.32;
-  const hillA = Math.max(0, 1 - Math.hypot(x + 15, z - 11) / 20) ** 2 * 4.8;
-  const hillB = Math.max(0, 1 - Math.hypot(x - 19, z + 18) / 18) ** 2 * 3.5;
-  const basin = Math.max(0, 1 - Math.hypot(x - 3, z - 4) / 12) ** 2 * 1.05;
-  return Math.max(-0.35, ridge + hillA + hillB - basin);
+  let height = baseTerrainHeight(x, z);
+  for (const lake of LAKES) {
+    const nx = (x - lake.x) / lake.radiusX;
+    const nz = (z - lake.z) / lake.radiusZ;
+    const distance = nx * nx + nz * nz;
+    if (distance < 1) {
+      height -= lake.depth * (1 - distance) ** 2;
+    }
+  }
+  return height;
+}
+
+function lakeWaterLevel(lake: LakeDefinition) {
+  return baseTerrainHeight(lake.x, lake.z) - lake.depth * 0.26;
+}
+
+function isInsideLake(x: number, z: number) {
+  return LAKES.some((lake) => {
+    const nx = (x - lake.x) / lake.radiusX;
+    const nz = (z - lake.z) / lake.radiusZ;
+    return nx * nx + nz * nz < 0.92;
+  });
+}
+
+function makeGroundTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+
+  context.fillStyle = '#91a085';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  const colors = ['#a3ae8a', '#748b78', '#839477', '#b0aa7e', '#667e70'];
+  for (let i = 0; i < 115; i += 1) {
+    const x = (i * 37) % 64;
+    const y = (i * 53 + 11) % 64;
+    const size = 0.35 + (i % 4) * 0.22;
+    context.fillStyle = colors[i % colors.length];
+    context.globalAlpha = 0.18 + (i % 5) * 0.035;
+    context.fillRect(x, y, size, size * (0.65 + (i % 3) * 0.18));
+  }
+  context.globalAlpha = 0.16;
+  context.strokeStyle = '#d0c993';
+  context.lineWidth = 0.45;
+  for (let i = -64; i < 128; i += 11) {
+    context.beginPath();
+    context.moveTo(i, 0);
+    context.lineTo(i + 32, 64);
+    context.stroke();
+  }
+  context.globalAlpha = 1;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(13, 13);
+  texture.anisotropy = 4;
+  return texture;
 }
 
 function makeTerrain() {
@@ -41,12 +137,12 @@ function makeTerrain() {
       const y = terrainHeight(x, z);
       positions.push(x, y, z);
       const noise = Math.sin(x * 0.9) * 0.035 + Math.cos(z * 0.65) * 0.025;
-      const color = y > 2.7
+       const color = y > 2.7
         ? new THREE.Color('#899b84')
         : y > 0.8
           ? new THREE.Color('#a6ab7a')
           : new THREE.Color('#aaa076');
-      color.offsetHSL(0, noise, noise);
+       color.offsetHSL(0, noise * 0.8, noise);
       colors.push(color.r, color.g, color.b);
     }
   }
@@ -65,37 +161,87 @@ function makeTerrain() {
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
   geometry.setIndex(indices);
   geometry.computeVertexNormals();
+  const groundTexture = makeGroundTexture();
   const material = new THREE.MeshStandardMaterial({
+    map: groundTexture ?? undefined,
     vertexColors: true,
-    roughness: 1,
+    roughness: 0.94,
     metalness: 0,
-    flatShading: true,
+    flatShading: false,
   });
   const ground = new THREE.Mesh(geometry, material);
   ground.receiveShadow = true;
   return ground;
 }
 
+function addWaterBodies(scene: THREE.Scene) {
+  const waterGroup = new THREE.Group();
+  waterGroup.name = 'Prototype Lakes';
+  const waterMaterial = new THREE.MeshPhysicalMaterial({
+    color: '#5aa6aa',
+    emissive: '#16454a',
+    emissiveIntensity: 0.22,
+    roughness: 0.18,
+    metalness: 0.12,
+    clearcoat: 0.55,
+    clearcoatRoughness: 0.24,
+    transparent: true,
+    opacity: 0.76,
+    side: THREE.DoubleSide,
+  });
+  const sheenMaterial = new THREE.MeshBasicMaterial({
+    color: '#c7fff1',
+    transparent: true,
+    opacity: 0.16,
+    side: THREE.DoubleSide,
+  });
+
+  for (const lake of LAKES) {
+    const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), waterMaterial);
+    water.name = 'Lake surface';
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(lake.x, lakeWaterLevel(lake), lake.z);
+    water.scale.set(lake.radiusX, lake.radiusZ, 1);
+    water.receiveShadow = true;
+    waterGroup.add(water);
+
+    const sheen = new THREE.Mesh(new THREE.CircleGeometry(0.78, 40), sheenMaterial);
+    sheen.rotation.x = -Math.PI / 2;
+    sheen.rotation.z = lake.x * 0.04;
+    sheen.position.set(lake.x - lake.radiusX * 0.16, lakeWaterLevel(lake) + 0.012, lake.z - lake.radiusZ * 0.11);
+    sheen.scale.set(lake.radiusX, lake.radiusZ * 0.25, 1);
+    waterGroup.add(sheen);
+  }
+
+  scene.add(waterGroup);
+}
+
 function addHabitatDetails(scene: THREE.Scene) {
   const details = new THREE.Group();
-  const rockGeometry = new THREE.IcosahedronGeometry(0.45, 0);
+  const rockGeometry = new THREE.DodecahedronGeometry(0.45, 0);
   const rockColors = ['#6f7780', '#8d8170', '#596a68', '#9c927e'];
-  for (let i = 0; i < 24; i += 1) {
-    const angle = i * 2.37;
-    const radius = 7 + (i * 13) % 22;
-    const x = Math.cos(angle) * radius;
-    const z = Math.sin(angle) * radius;
-    const scale = 0.45 + ((i * 7) % 8) / 16;
-    const rock = new THREE.Mesh(
-      rockGeometry,
-      new THREE.MeshStandardMaterial({ color: rockColors[i % rockColors.length], roughness: 1, flatShading: true }),
-    );
-    rock.position.set(x, terrainHeight(x, z) + scale * 0.3, z);
-    rock.scale.set(scale * 1.2, scale * (0.55 + (i % 3) * 0.14), scale);
-    rock.rotation.set(i * 0.37, i * 0.71, i * 0.19);
-    rock.castShadow = true;
-    rock.receiveShadow = true;
-    details.add(rock);
+  let rockIndex = 0;
+  for (const patch of ROCK_PATCHES) {
+    for (let i = 0; i < patch.count; i += 1) {
+      const seed = rockIndex + i * 17;
+      const angle = seed * 2.31;
+      const radius = 0.28 + ((seed * 13) % 71) / 100;
+      const x = patch.x + Math.cos(angle) * patch.radiusX * radius;
+      const z = patch.z + Math.sin(angle) * patch.radiusZ * radius;
+      if (isInsideLake(x, z)) continue;
+      const scale = 0.38 + ((seed * 7) % 9) / 18;
+      const rock = new THREE.Mesh(
+        rockGeometry,
+        new THREE.MeshStandardMaterial({ color: rockColors[rockIndex % rockColors.length], roughness: 1, flatShading: true }),
+      );
+      rock.position.set(x, terrainHeight(x, z) + scale * 0.3, z);
+      rock.scale.set(scale * 1.2, scale * (0.55 + (seed % 3) * 0.14), scale);
+      rock.rotation.set(seed * 0.37, seed * 0.71, seed * 0.19);
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      details.add(rock);
+      rockIndex += 1;
+    }
   }
 
   const marker = new THREE.Group();
@@ -122,6 +268,7 @@ function addHabitatDetails(scene: THREE.Scene) {
   });
   details.add(marker);
   scene.add(details);
+  addWaterBodies(scene);
 }
 
 function makePlayer() {
@@ -186,6 +333,15 @@ export function GameWorld({ onExit }: GameWorldProps) {
     setPaused(value);
   };
   const setCameraMode = (value: boolean) => {
+    if (value && !firstPersonRef.current) {
+      cameraAngles.current.pitch = 0.04;
+    } else if (!value && firstPersonRef.current) {
+      cameraAngles.current.pitch = 0.38;
+    } else {
+      cameraAngles.current.pitch = value
+        ? THREE.MathUtils.clamp(cameraAngles.current.pitch, FIRST_PERSON_PITCH_LIMITS.min, FIRST_PERSON_PITCH_LIMITS.max)
+        : THREE.MathUtils.clamp(cameraAngles.current.pitch, THIRD_PERSON_PITCH_LIMITS.min, THIRD_PERSON_PITCH_LIMITS.max);
+    }
     firstPersonRef.current = value;
     setFirstPerson(value);
   };
@@ -197,7 +353,12 @@ export function GameWorld({ onExit }: GameWorldProps) {
     scene.background = new THREE.Color('#8baeb1');
     scene.fog = new THREE.Fog('#8baeb1', 34, 92);
     const camera = new THREE.PerspectiveCamera(54, 1, 0.1, 150);
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      powerPreference: 'high-performance',
+      preserveDrawingBuffer: true,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -231,6 +392,12 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const velocity = new THREE.Vector3();
     const target = new THREE.Vector3();
     const desiredCamera = new THREE.Vector3();
+    const cameraRay = new THREE.Vector3();
+    const cameraCandidate = new THREE.Vector3();
+    const cameraLookTarget = new THREE.Vector3();
+    const cameraLookDirection = new THREE.Vector3();
+    const cameraLookMatrix = new THREE.Matrix4();
+    const cameraLookQuaternion = new THREE.Quaternion();
     const skyColor = new THREE.Color();
     const daySky = new THREE.Color('#8baeb1');
     const nightSky = new THREE.Color('#202d4a');
@@ -262,7 +429,10 @@ export function GameWorld({ onExit }: GameWorldProps) {
         if (value && !event.repeat) jumpQueued = true;
         event.preventDefault();
       }
-      if (key === 'v' && value && !event.repeat) setCameraMode(!firstPersonRef.current);
+      if ((key === 'v' || key === 'f5') && value && !event.repeat) {
+        event.preventDefault();
+        setCameraMode(!firstPersonRef.current);
+      }
       if (key === 'escape' && value && !event.repeat) setPausedState(!pausedRef.current);
     };
     const keyDown = (event: KeyboardEvent) => keyChange(event, true);
@@ -356,18 +526,35 @@ export function GameWorld({ onExit }: GameWorldProps) {
           desiredCamera.y,
           terrainHeight(desiredCamera.x, desiredCamera.z) + 1.1,
         );
+        // Resolve the complete camera ray, not only its endpoint. This keeps
+        // the follow camera from tunneling through a hill when orbiting.
+        cameraRay.subVectors(desiredCamera, target);
+        let safeT = 1;
+        for (let step = 1; step <= 18; step += 1) {
+          const t = step / 18;
+          cameraCandidate.copy(target).addScaledVector(cameraRay, t);
+          if (cameraCandidate.y < terrainHeight(cameraCandidate.x, cameraCandidate.z) + 1.05) {
+            safeT = Math.max(0.27, (step - 1) / 18);
+            break;
+          }
+        }
+        if (safeT < 1) desiredCamera.copy(target).addScaledVector(cameraRay, safeT);
+        desiredCamera.y = Math.max(desiredCamera.y, terrainHeight(desiredCamera.x, desiredCamera.z) + 1.1);
       }
       camera.position.lerp(desiredCamera, 1 - Math.pow(0.001, delta));
       if (firstPersonRef.current) {
-        const lookDirection = new THREE.Vector3(
+        cameraLookDirection.set(
           -Math.sin(yaw) * Math.cos(pitch),
           Math.sin(pitch),
           -Math.cos(yaw) * Math.cos(pitch),
         );
-        camera.lookAt(desiredCamera.clone().addScaledVector(lookDirection, 10));
+        cameraLookTarget.copy(desiredCamera).addScaledVector(cameraLookDirection, 10);
       } else {
-        camera.lookAt(target);
+        cameraLookTarget.copy(target);
       }
+      cameraLookMatrix.lookAt(camera.position, cameraLookTarget, camera.up);
+      cameraLookQuaternion.setFromRotationMatrix(cameraLookMatrix);
+      camera.quaternion.slerp(cameraLookQuaternion, 1 - Math.pow(0.0001, delta));
       renderer.render(scene, camera);
       animation = requestAnimationFrame(frame);
     };
@@ -415,11 +602,23 @@ export function GameWorld({ onExit }: GameWorldProps) {
     drag.current.x = event.clientX;
     drag.current.y = event.clientY;
     cameraAngles.current.yaw -= dx * 0.008;
-    cameraAngles.current.pitch = THREE.MathUtils.clamp(cameraAngles.current.pitch - dy * 0.006, 0.12, 1.05);
+    const limits = firstPersonRef.current ? FIRST_PERSON_PITCH_LIMITS : THIRD_PERSON_PITCH_LIMITS;
+    cameraAngles.current.pitch = THREE.MathUtils.clamp(cameraAngles.current.pitch - dy * 0.006, limits.min, limits.max);
   };
   const handlePointerUp = () => { drag.current.active = false; };
   const handleWheel = (event: WheelEvent<HTMLDivElement>) => {
     cameraAngles.current.distance = THREE.MathUtils.clamp(cameraAngles.current.distance + event.deltaY * 0.008, 4.1, 12);
+  };
+  const resetCamera = () => {
+    cameraAngles.current = { yaw: 0.55, pitch: 0.38, distance: 7.5 };
+  };
+  const captureScreenshot = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const link = document.createElement('a');
+    link.download = `exovanta-prototype-03-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
   };
 
   return (
@@ -445,18 +644,30 @@ export function GameWorld({ onExit }: GameWorldProps) {
           type="button"
           data-testid="button-camera-mode"
           aria-pressed={firstPerson}
+          aria-label={`Switch to ${firstPerson ? 'third-person' : 'first-person'} camera`}
           onPointerDown={(event) => event.stopPropagation()}
           onClick={() => setCameraMode(!firstPersonRef.current)}
         >
           <Camera size={14} strokeWidth={1.7} />
           <span>{firstPerson ? 'First person' : 'Third person'}</span>
         </button>
+        <button
+          className="screenshot-button"
+          type="button"
+          data-testid="button-screenshot"
+          aria-label="Capture screenshot"
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={captureScreenshot}
+        >
+          <Download size={14} strokeWidth={1.7} />
+          <span>Capture</span>
+        </button>
         <button className="pause-button" type="button" data-testid="button-pause" onClick={() => setPausedState(!pausedRef.current)}>
           <Pause size={14} strokeWidth={1.7} /><span>Pause</span>
         </button>
       </div>
       <div className="world-crosshair" aria-hidden="true" />
-      <p className="world-hint">WASD MOVE&nbsp;&nbsp; / &nbsp;&nbsp;SHIFT RUN&nbsp;&nbsp; / &nbsp;&nbsp;SPACE JUMP&nbsp;&nbsp; / &nbsp;&nbsp;DRAG LOOK&nbsp;&nbsp; / &nbsp;&nbsp;V VIEW</p>
+      <p className="world-hint">WASD MOVE&nbsp;&nbsp; / &nbsp;&nbsp;SHIFT RUN&nbsp;&nbsp; / &nbsp;&nbsp;SPACE JUMP&nbsp;&nbsp; / &nbsp;&nbsp;DRAG LOOK&nbsp;&nbsp; / &nbsp;&nbsp;F5 VIEW</p>
 
       <div className="mobile-controls" aria-label="Touch controls">
         <div
@@ -486,7 +697,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
             <div className="pause-actions">
               <button type="button" data-testid="button-resume" onClick={() => setPausedState(false)}><Play size={14} /> Resume simulation</button>
               <button type="button" data-testid="button-return-menu" onClick={onExitRef.current}><ArrowLeft size={14} /> Return to menu</button>
-              <button type="button" data-testid="button-reset-view" onClick={() => { cameraAngles.current = { yaw: 0.55, pitch: 0.38, distance: 7.5 }; }}><RotateCcw size={14} /> Reset camera</button>
+              <button type="button" data-testid="button-reset-view" onClick={resetCamera}><RotateCcw size={14} /> Reset camera</button>
             </div>
           </div>
         </div>
