@@ -17,6 +17,7 @@ type InputState = {
 const WORLD_SIZE = 86;
 const GRID_SIZE = 48;
 const PLAYER_HEIGHT = 2.55;
+const DAY_NIGHT_CYCLE_SECONDS = 12 * 60;
 const FIRST_PERSON_PITCH_LIMITS = { min: -0.72, max: 0.62 };
 const THIRD_PERSON_PITCH_LIMITS = { min: 0.12, max: 1.05 };
 
@@ -256,6 +257,8 @@ function makeClouds() {
     { x: 28, z: -18, y: 19, scale: 1.35, speed: 0.31 },
     { x: 48, z: 18, y: 24, scale: 0.9, speed: 0.24 },
     { x: 8, z: 38, y: 20, scale: 1.05, speed: 0.26 },
+    { x: -28, z: 29, y: 23, scale: 0.78, speed: 0.2 },
+    { x: 38, z: 2, y: 21, scale: 1.12, speed: 0.29 },
   ];
   for (const [cloudIndex, seed] of cloudSeeds.entries()) {
     const cloud = new THREE.Group();
@@ -710,19 +713,51 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const ambient = new THREE.AmbientLight('#8aa7c0', 0.22);
     scene.add(ambient);
     const celestialGeometry = new THREE.SphereGeometry(1, 14, 10);
+    const sunMaterial = new THREE.MeshBasicMaterial({
+      color: '#fff1bb',
+      transparent: true,
+      opacity: 0.94,
+      depthWrite: false,
+    });
+    const sunGlowMaterial = new THREE.MeshBasicMaterial({
+      color: '#ffd996',
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
     const sunOrb = new THREE.Mesh(
       celestialGeometry,
-      new THREE.MeshBasicMaterial({ color: '#fff1bb', transparent: true, opacity: 0.94 }),
+      sunMaterial,
     );
     sunOrb.name = 'Sun';
-    sunOrb.scale.setScalar(1.7);
+    sunOrb.scale.setScalar(1.85);
+    const sunGlow = new THREE.Mesh(celestialGeometry, sunGlowMaterial);
+    sunGlow.name = 'Sun glow';
+    sunGlow.scale.setScalar(4.1);
+    const moonMaterial = new THREE.MeshBasicMaterial({
+      color: '#d9e6ff',
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+    });
+    const moonGlowMaterial = new THREE.MeshBasicMaterial({
+      color: '#9fbfff',
+      transparent: true,
+      opacity: 0.12,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
     const moonOrb = new THREE.Mesh(
       celestialGeometry,
-      new THREE.MeshBasicMaterial({ color: '#d9e6ff', transparent: true, opacity: 0.92 }),
+      moonMaterial,
     );
     moonOrb.name = 'Moon';
-    moonOrb.scale.setScalar(1.2);
-    scene.add(sunOrb, moonOrb);
+    moonOrb.scale.setScalar(1.3);
+    const moonGlow = new THREE.Mesh(celestialGeometry, moonGlowMaterial);
+    moonGlow.name = 'Moon glow';
+    moonGlow.scale.setScalar(3.1);
+    scene.add(sunOrb, sunGlow, moonOrb, moonGlow);
     scene.add(makeTerrain());
     addHabitatDetails(scene);
 
@@ -755,6 +790,11 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const dayBottom = new THREE.Color('#67858a');
     const nightBottom = new THREE.Color('#1f3451');
     const sunsetBottom = new THREE.Color('#765969');
+    const sunWarm = new THREE.Color('#ffad6b');
+    const sunDay = new THREE.Color('#fff7d0');
+    const sunTwilight = new THREE.Color('#ff9b67');
+    const moonNight = new THREE.Color('#b9cfff');
+    const moonDay = new THREE.Color('#edf4ff');
     const skyTop = new THREE.Color();
     const skyHorizon = new THREE.Color();
     const skyBottom = new THREE.Color();
@@ -802,7 +842,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const frame = (now: number) => {
       const delta = Math.min((now - last) / 1000, 0.05);
       last = now;
-      worldTime = (worldTime + delta / 150) % 1;
+      worldTime = (worldTime + delta / DAY_NIGHT_CYCLE_SECONDS) % 1;
       const sunAngle = worldTime * Math.PI * 2;
       const sunAltitude = Math.sin(sunAngle);
       const daylight = THREE.MathUtils.clamp(sunAltitude * 0.5 + 0.5, 0.08, 1);
@@ -818,11 +858,25 @@ export function GameWorld({ onExit }: GameWorldProps) {
       skyDome.uniforms.topColor.value.copy(skyTop);
       skyDome.uniforms.horizonColor.value.copy(skyHorizon);
       skyDome.uniforms.bottomColor.value.copy(skyBottom);
-      celestialPosition.set(Math.cos(sunAngle) * 62, 12 + sunAltitude * 43, Math.sin(sunAngle) * 62);
+      celestialPosition.set(Math.cos(sunAngle) * 62, sunAltitude * 48, Math.sin(sunAngle) * 62);
       sun.position.copy(celestialPosition);
       sunOrb.position.copy(celestialPosition);
+      sunGlow.position.copy(celestialPosition);
       moonOrb.position.copy(celestialPosition).multiplyScalar(-1);
+      moonGlow.position.copy(moonOrb.position);
       moonLight.position.copy(moonOrb.position);
+      sunMaterial.color.lerpColors(sunWarm, sunDay, daylight);
+      sunMaterial.color.lerp(sunTwilight, twilight * 0.32);
+      sunMaterial.opacity = 0.76 + daylight * 0.22;
+      sunGlowMaterial.color.copy(sunMaterial.color);
+      sunGlowMaterial.opacity = 0.025 + daylight * 0.12 + twilight * 0.08;
+      moonMaterial.color.lerpColors(moonNight, moonDay, nightFactor);
+      moonMaterial.opacity = 0.45 + nightFactor * 0.48;
+      moonGlowMaterial.opacity = 0.025 + nightFactor * 0.13;
+      sunOrb.visible = sunAltitude > -0.24;
+      sunGlow.visible = sunOrb.visible;
+      moonOrb.visible = sunAltitude < 0.24;
+      moonGlow.visible = moonOrb.visible;
       sun.intensity = 0.12 + daylight * 2.65;
       moonLight.intensity = 0.04 + nightFactor * 0.42;
       ambient.intensity = 0.16 + daylight * 0.23 + nightFactor * 0.1;

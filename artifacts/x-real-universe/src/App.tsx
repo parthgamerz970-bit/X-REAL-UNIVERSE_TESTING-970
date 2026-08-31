@@ -78,17 +78,33 @@ function UniverseMenu() {
     }
   }, [settings]);
 
+  useEffect(() => {
+    const syncFullscreenState = () => {
+      const isFullscreen = Boolean(document.fullscreenElement);
+      setSettings((current) => (
+        current.fullscreen === isFullscreen ? current : { ...current, fullscreen: isFullscreen }
+      ));
+    };
+    document.addEventListener('fullscreenchange', syncFullscreenState);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreenState);
+  }, []);
+
   const getAudioContext = useCallback(() => {
-    if (!audioContextRef.current) {
-      const AudioContextConstructor = (
-        window.AudioContext ||
-        (window as Window & { webkitAudioContext?: BrowserAudioContext }).webkitAudioContext
-      ) as BrowserAudioContext | undefined;
-      if (!AudioContextConstructor) return null;
-      audioContextRef.current = new AudioContextConstructor();
+    try {
+      if (!audioContextRef.current) {
+        const AudioContextConstructor = (
+          window.AudioContext ||
+          (window as Window & { webkitAudioContext?: BrowserAudioContext }).webkitAudioContext
+        ) as BrowserAudioContext | undefined;
+        if (!AudioContextConstructor) return null;
+        audioContextRef.current = new AudioContextConstructor();
+      }
+      if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume();
+      return audioContextRef.current;
+    } catch {
+      audioContextRef.current = null;
+      return null;
     }
-    if (audioContextRef.current.state === 'suspended') void audioContextRef.current.resume();
-    return audioContextRef.current;
   }, []);
 
   const playHoverSound = useCallback(() => {
@@ -149,13 +165,15 @@ function UniverseMenu() {
 
   const handleFullscreenToggle = async () => {
     const shouldEnterFullscreen = !settings.fullscreen;
-    setSettings((current) => ({ ...current, fullscreen: shouldEnterFullscreen }));
     try {
-      if (shouldEnterFullscreen) await document.documentElement.requestFullscreen?.();
+      if (shouldEnterFullscreen && document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+      }
       else if (document.fullscreenElement) await document.exitFullscreen();
     } catch {
-      setSettings((current) => ({ ...current, fullscreen: Boolean(document.fullscreenElement) }));
+      // Fullscreen is optional on some embedded browsers; never block the menu.
     }
+    setSettings((current) => ({ ...current, fullscreen: Boolean(document.fullscreenElement) }));
   };
 
   const resetSettings = () => {
@@ -183,7 +201,11 @@ function UniverseMenu() {
           data-testid="button-play"
           onPointerEnter={playHoverSound}
           onFocus={playHoverSound}
-          onClick={() => { playClickSound(); setSettingsOpen(false); setPlaying(true); }}
+          onClick={() => {
+            try { playClickSound(); } catch { /* Audio is optional and must not block Play. */ }
+            setSettingsOpen(false);
+            setPlaying(true);
+          }}
         >Play</button>
         <button
           className="menu-button"
