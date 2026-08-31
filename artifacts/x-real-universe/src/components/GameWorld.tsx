@@ -17,7 +17,7 @@ type InputState = {
 const WORLD_SIZE = 86;
 const GRID_SIZE = 48;
 const PLAYER_HEIGHT = 2.55;
-const FIRST_PERSON_PITCH_LIMITS = { min: -0.9, max: 0.86 };
+const FIRST_PERSON_PITCH_LIMITS = { min: -0.72, max: 0.62 };
 const THIRD_PERSON_PITCH_LIMITS = { min: 0.12, max: 1.05 };
 
 type LakeDefinition = {
@@ -26,11 +26,14 @@ type LakeDefinition = {
   radiusX: number;
   radiusZ: number;
   depth: number;
+  rotation: number;
 };
 
 const LAKES: LakeDefinition[] = [
-  { x: -24, z: -9, radiusX: 6.4, radiusZ: 3.9, depth: 0.8 },
-  { x: 24, z: 14, radiusX: 4.8, radiusZ: 3.1, depth: 0.66 },
+  { x: -24, z: -9, radiusX: 6.4, radiusZ: 3.9, depth: 0.8, rotation: -0.18 },
+  { x: 24, z: 14, radiusX: 4.8, radiusZ: 3.1, depth: 0.66, rotation: 0.3 },
+  { x: -10, z: 27, radiusX: 4.7, radiusZ: 2.8, depth: 0.58, rotation: -0.42 },
+  { x: 14, z: -27, radiusX: 5.3, radiusZ: 3.15, depth: 0.7, rotation: 0.16 },
 ];
 
 type RockPatch = {
@@ -46,7 +49,13 @@ const ROCK_PATCHES: RockPatch[] = [
   { x: 29, z: -20, radiusX: 6.6, radiusZ: 4.4, count: 6 },
   { x: -31, z: 25, radiusX: 7.4, radiusZ: 5.6, count: 7 },
   { x: 30, z: 27, radiusX: 5.9, radiusZ: 4.8, count: 6 },
+  { x: 6, z: 20, radiusX: 5.4, radiusZ: 3.2, count: 4 },
 ];
+
+function seededValue(seed: number) {
+  const value = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
 
 function baseTerrainHeight(x: number, z: number) {
   const broad = Math.sin(x * 0.12 + 0.8) * 0.38 + Math.cos(z * 0.1 - 0.35) * 0.3;
@@ -54,16 +63,22 @@ function baseTerrainHeight(x: number, z: number) {
   const hillA = Math.max(0, 1 - Math.hypot(x + 15, z - 11) / 22) ** 2 * 4.2;
   const hillB = Math.max(0, 1 - Math.hypot(x - 19, z + 18) / 20) ** 2 * 3.2;
   const shoulder = Math.max(0, 1 - Math.hypot(x - 24, z - 4) / 25) ** 2 * 0.75;
-  const basin = Math.max(0, 1 - Math.hypot(x - 3, z - 4) / 13) ** 2 * 0.95;
+  const basin = Math.max(0, 1 - Math.hypot(x - 3, z - 4) / 13) ** 2 * 1.15;
+  const valley = Math.max(0, 1 - Math.hypot(x + 8, z + 18) / 18) ** 2 * 0.9;
+  const ridge = Math.sin((x * 0.18) - (z * 0.13)) * 0.12;
   const detail = Math.sin(x * 0.47 + z * 0.13) * 0.075 + Math.cos(z * 0.42 - x * 0.18) * 0.055;
-  return Math.max(-0.45, broad + cross + hillA + hillB + shoulder - basin + detail);
+  return Math.max(-0.55, broad + cross + hillA + hillB + shoulder - basin - valley + ridge + detail);
 }
 
 function terrainHeight(x: number, z: number) {
   let height = baseTerrainHeight(x, z);
   for (const lake of LAKES) {
-    const nx = (x - lake.x) / lake.radiusX;
-    const nz = (z - lake.z) / lake.radiusZ;
+    const cos = Math.cos(lake.rotation);
+    const sin = Math.sin(lake.rotation);
+    const dx = x - lake.x;
+    const dz = z - lake.z;
+    const nx = (dx * cos + dz * sin) / lake.radiusX;
+    const nz = (-dx * sin + dz * cos) / lake.radiusZ;
     const distance = nx * nx + nz * nz;
     if (distance < 1) {
       height -= lake.depth * (1 - distance) ** 2;
@@ -78,10 +93,48 @@ function lakeWaterLevel(lake: LakeDefinition) {
 
 function isInsideLake(x: number, z: number) {
   return LAKES.some((lake) => {
-    const nx = (x - lake.x) / lake.radiusX;
-    const nz = (z - lake.z) / lake.radiusZ;
+    const cos = Math.cos(lake.rotation);
+    const sin = Math.sin(lake.rotation);
+    const dx = x - lake.x;
+    const dz = z - lake.z;
+    const nx = (dx * cos + dz * sin) / lake.radiusX;
+    const nz = (-dx * sin + dz * cos) / lake.radiusZ;
     return nx * nx + nz * nz < 0.92;
   });
+}
+
+function terrainSlope(x: number, z: number) {
+  const sample = 0.55;
+  const xSlope = terrainHeight(x + sample, z) - terrainHeight(x - sample, z);
+  const zSlope = terrainHeight(x, z + sample) - terrainHeight(x, z - sample);
+  return Math.hypot(xSlope, zSlope) / (sample * 2);
+}
+
+function terrainColor(x: number, z: number, height: number) {
+  const grass = new THREE.Color('#7f9a7e');
+  const meadow = new THREE.Color('#a0aa7b');
+  const sand = new THREE.Color('#b6aa7d');
+  const dryGrass = new THREE.Color('#8f9870');
+  const color = new THREE.Color();
+  const lowlandMix = THREE.MathUtils.smoothstep(height, -0.2, 1.15);
+  color.lerpColors(sand, meadow, lowlandMix);
+  color.lerp(grass, THREE.MathUtils.smoothstep(height, 1.2, 3.15) * 0.72);
+  color.lerp(dryGrass, THREE.MathUtils.clamp(terrainSlope(x, z) * 0.95, 0, 0.35));
+
+  let shoreMix = 0;
+  for (const lake of LAKES) {
+    const cos = Math.cos(lake.rotation);
+    const sin = Math.sin(lake.rotation);
+    const dx = x - lake.x;
+    const dz = z - lake.z;
+    const nx = (dx * cos + dz * sin) / lake.radiusX;
+    const nz = (-dx * sin + dz * cos) / lake.radiusZ;
+    const distance = Math.hypot(nx, nz);
+    shoreMix = Math.max(shoreMix, 1 - THREE.MathUtils.smoothstep(distance, 0.86, 1.18));
+  }
+  color.lerp(sand, shoreMix * 0.58);
+  color.offsetHSL((seededValue(x * 0.7 + z * 1.3) - 0.5) * 0.025, 0, (seededValue(x * 1.9 - z * 0.8) - 0.5) * 0.05);
+  return color;
 }
 
 function makeGroundTexture() {
@@ -91,9 +144,9 @@ function makeGroundTexture() {
   const context = canvas.getContext('2d');
   if (!context) return null;
 
-  context.fillStyle = '#91a085';
+  context.fillStyle = '#9aa27c';
   context.fillRect(0, 0, canvas.width, canvas.height);
-  const colors = ['#a3ae8a', '#748b78', '#839477', '#b0aa7e', '#667e70'];
+  const colors = ['#a9ad82', '#7c967b', '#879a76', '#b5aa7d', '#6f8875'];
   for (let i = 0; i < 115; i += 1) {
     const x = (i * 37) % 64;
     const y = (i * 53 + 11) % 64;
@@ -122,6 +175,111 @@ function makeGroundTexture() {
   return texture;
 }
 
+function makeSkyDome() {
+  const uniforms = {
+    topColor: { value: new THREE.Color('#4f879f') },
+    horizonColor: { value: new THREE.Color('#d0c08f') },
+    bottomColor: { value: new THREE.Color('#637f86') },
+  };
+  const material = new THREE.ShaderMaterial({
+    uniforms,
+    vertexShader: `
+      varying vec3 vDirection;
+      void main() {
+        vDirection = normalize((modelMatrix * vec4(position, 1.0)).xyz);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 topColor;
+      uniform vec3 horizonColor;
+      uniform vec3 bottomColor;
+      varying vec3 vDirection;
+      void main() {
+        float height = clamp(vDirection.y * 0.5 + 0.5, 0.0, 1.0);
+        vec3 lower = mix(bottomColor, horizonColor, smoothstep(0.08, 0.52, height));
+        vec3 sky = mix(lower, topColor, smoothstep(0.48, 0.94, height));
+        gl_FragColor = vec4(sky, 1.0);
+      }
+    `,
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+  });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(118, 24, 16), material);
+  mesh.name = 'Procedural atmosphere';
+  mesh.renderOrder = -10;
+  return { mesh, uniforms };
+}
+
+function makeStarField() {
+  const positions: number[] = [];
+  for (let i = 0; i < 150; i += 1) {
+    const angle = i * 2.399963;
+    const height = 0.18 + seededValue(i * 4.17) * 0.78;
+    const ring = Math.sqrt(1 - height * height);
+    const radius = 94 + seededValue(i * 2.31) * 14;
+    positions.push(
+      Math.cos(angle) * ring * radius,
+      height * radius,
+      Math.sin(angle) * ring * radius,
+    );
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({
+    color: '#e5f4ff',
+    size: 0.28,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+  });
+  const stars = new THREE.Points(geometry, material);
+  stars.name = 'Night star field';
+  return stars;
+}
+
+function makeClouds() {
+  const clouds = new THREE.Group();
+  clouds.name = 'Lightweight cloud layers';
+  const cloudGeometry = new THREE.SphereGeometry(1, 8, 6);
+  const cloudMaterial = new THREE.MeshLambertMaterial({
+    color: '#f2f3e7',
+    transparent: true,
+    opacity: 0.14,
+    depthWrite: false,
+  });
+  const cloudSeeds = [
+    { x: -42, z: -33, y: 18, scale: 1.2, speed: 0.28 },
+    { x: -10, z: 3, y: 22, scale: 0.85, speed: 0.22 },
+    { x: 28, z: -18, y: 19, scale: 1.35, speed: 0.31 },
+    { x: 48, z: 18, y: 24, scale: 0.9, speed: 0.24 },
+    { x: 8, z: 38, y: 20, scale: 1.05, speed: 0.26 },
+  ];
+  for (const [cloudIndex, seed] of cloudSeeds.entries()) {
+    const cloud = new THREE.Group();
+    cloud.position.set(seed.x, seed.y, seed.z);
+    cloud.userData.baseX = seed.x;
+    cloud.userData.speed = seed.speed;
+    cloud.userData.phase = cloudIndex * 7.4;
+    const puffs = 3 + (cloudIndex % 3);
+    for (let i = 0; i < puffs; i += 1) {
+      const puff = new THREE.Mesh(cloudGeometry, cloudMaterial);
+      puff.position.set((i - 1) * 1.05, seededValue(i + cloudIndex * 9) * 0.28, (i % 2) * 0.28);
+      puff.scale.set(
+        seed.scale * (1.25 - (i % 2) * 0.15),
+        seed.scale * (0.36 + (i % 3) * 0.08),
+        seed.scale * (0.7 + (i % 2) * 0.15),
+      );
+      cloud.add(puff);
+    }
+    clouds.add(cloud);
+  }
+  clouds.userData.cloudMaterial = cloudMaterial;
+  return clouds;
+}
+
 function makeTerrain() {
   const geometry = new THREE.BufferGeometry();
   const positions: number[] = [];
@@ -136,13 +294,7 @@ function makeTerrain() {
       const z = iz * step - half;
       const y = terrainHeight(x, z);
       positions.push(x, y, z);
-      const noise = Math.sin(x * 0.9) * 0.035 + Math.cos(z * 0.65) * 0.025;
-       const color = y > 2.7
-        ? new THREE.Color('#899b84')
-        : y > 0.8
-          ? new THREE.Color('#a6ab7a')
-          : new THREE.Color('#aaa076');
-       color.offsetHSL(0, noise * 0.8, noise);
+      const color = terrainColor(x, z, y);
       colors.push(color.r, color.g, color.b);
     }
   }
@@ -177,70 +329,201 @@ function makeTerrain() {
 function addWaterBodies(scene: THREE.Scene) {
   const waterGroup = new THREE.Group();
   waterGroup.name = 'Prototype Lakes';
+  const waterGeometry = new THREE.CircleGeometry(1, 48);
+  const sheenGeometry = new THREE.CircleGeometry(0.78, 40);
+  const shoreGeometry = new THREE.RingGeometry(0.92, 1.08, 48);
   const waterMaterial = new THREE.MeshPhysicalMaterial({
-    color: '#5aa6aa',
-    emissive: '#16454a',
-    emissiveIntensity: 0.22,
-    roughness: 0.18,
-    metalness: 0.12,
-    clearcoat: 0.55,
-    clearcoatRoughness: 0.24,
+    color: '#4c9fa4',
+    emissive: '#123b43',
+    emissiveIntensity: 0.18,
+    roughness: 0.16,
+    metalness: 0.16,
+    clearcoat: 0.7,
+    clearcoatRoughness: 0.18,
     transparent: true,
-    opacity: 0.76,
+    opacity: 0.78,
     side: THREE.DoubleSide,
   });
   const sheenMaterial = new THREE.MeshBasicMaterial({
-    color: '#c7fff1',
+    color: '#d5fff0',
     transparent: true,
-    opacity: 0.16,
+    opacity: 0.2,
+    side: THREE.DoubleSide,
+  });
+  const shoreMaterial = new THREE.MeshStandardMaterial({
+    color: '#b4a67a',
+    roughness: 1,
+    metalness: 0,
     side: THREE.DoubleSide,
   });
 
   for (const lake of LAKES) {
-    const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), waterMaterial);
+    const level = lakeWaterLevel(lake);
+    const water = new THREE.Mesh(waterGeometry, waterMaterial);
     water.name = 'Lake surface';
     water.rotation.x = -Math.PI / 2;
-    water.position.set(lake.x, lakeWaterLevel(lake), lake.z);
+    water.rotation.z = lake.rotation;
+    water.position.set(lake.x, level, lake.z);
     water.scale.set(lake.radiusX, lake.radiusZ, 1);
     water.receiveShadow = true;
+    water.renderOrder = 1;
     waterGroup.add(water);
 
-    const sheen = new THREE.Mesh(new THREE.CircleGeometry(0.78, 40), sheenMaterial);
+    const shore = new THREE.Mesh(shoreGeometry, shoreMaterial);
+    shore.name = 'Lake shoreline';
+    shore.rotation.x = -Math.PI / 2;
+    shore.rotation.z = lake.rotation;
+    shore.position.set(lake.x, level - 0.035, lake.z);
+    shore.scale.set(lake.radiusX, lake.radiusZ, 1);
+    shore.receiveShadow = true;
+    waterGroup.add(shore);
+
+    const sheen = new THREE.Mesh(sheenGeometry, sheenMaterial);
     sheen.rotation.x = -Math.PI / 2;
-    sheen.rotation.z = lake.x * 0.04;
-    sheen.position.set(lake.x - lake.radiusX * 0.16, lakeWaterLevel(lake) + 0.012, lake.z - lake.radiusZ * 0.11);
+    sheen.rotation.z = lake.rotation + lake.x * 0.04;
+    sheen.position.set(lake.x - lake.radiusX * 0.16, level + 0.012, lake.z - lake.radiusZ * 0.11);
     sheen.scale.set(lake.radiusX, lake.radiusZ * 0.25, 1);
+    sheen.renderOrder = 2;
     waterGroup.add(sheen);
   }
 
   scene.add(waterGroup);
 }
 
+function addVegetation(scene: THREE.Scene) {
+  const vegetation = new THREE.Group();
+  vegetation.name = 'Controlled habitat vegetation';
+  const grassGeometry = new THREE.ConeGeometry(0.11, 0.58, 3);
+  const grassMaterial = new THREE.MeshStandardMaterial({
+    color: '#6f926f',
+    roughness: 1,
+    metalness: 0,
+  });
+  const grass = new THREE.InstancedMesh(grassGeometry, grassMaterial, 140);
+  const matrix = new THREE.Matrix4();
+  const position = new THREE.Vector3();
+  const rotation = new THREE.Quaternion();
+  const scale = new THREE.Vector3();
+  let grassCount = 0;
+
+  for (let x = -37; x <= 37 && grassCount < 140; x += 4.4) {
+    for (let z = -37; z <= 37 && grassCount < 140; z += 4.7) {
+      const seed = x * 17.3 + z * 31.7;
+      const chance = seededValue(seed);
+      const height = terrainHeight(x, z);
+      const inMeadow = height > -0.1 && height < 2.8;
+      const nearWater = LAKES.some((lake) => {
+        const distance = Math.hypot((x - lake.x) / lake.radiusX, (z - lake.z) / lake.radiusZ);
+        return distance > 0.92 && distance < 1.5;
+      });
+      if (isInsideLake(x, z) || (!inMeadow && !nearWater) || chance < (nearWater ? 0.72 : 0.79)) continue;
+      const offsetX = (seededValue(seed + 1.7) - 0.5) * 2.1;
+      const offsetZ = (seededValue(seed + 4.1) - 0.5) * 2.1;
+      const bladeHeight = 0.72 + seededValue(seed + 5.3) * 0.55;
+      position.set(x + offsetX, terrainHeight(x + offsetX, z + offsetZ) + bladeHeight * 0.5, z + offsetZ);
+      rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), seededValue(seed + 7.4) * Math.PI * 2);
+      scale.set(0.72 + seededValue(seed + 8.6) * 0.48, bladeHeight, 0.72 + seededValue(seed + 9.2) * 0.48);
+      matrix.compose(position, rotation, scale);
+      grass.setMatrixAt(grassCount, matrix);
+      grassCount += 1;
+    }
+  }
+  grass.count = grassCount;
+  grass.instanceMatrix.needsUpdate = true;
+  grass.castShadow = false;
+  grass.receiveShadow = true;
+  vegetation.add(grass);
+
+  const bushGeometry = new THREE.DodecahedronGeometry(0.6, 1);
+  const bushMaterial = new THREE.MeshStandardMaterial({ color: '#567a68', roughness: 1 });
+  const bushes = new THREE.InstancedMesh(bushGeometry, bushMaterial, 18);
+  let bushCount = 0;
+  for (let i = 0; i < 18; i += 1) {
+    const x = -32 + seededValue(i * 8.4 + 2) * 64;
+    const z = -34 + seededValue(i * 5.2 + 9) * 68;
+    if (isInsideLake(x, z) || terrainHeight(x, z) > 3.1) continue;
+    position.set(x, terrainHeight(x, z) + 0.42, z);
+    rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), seededValue(i * 3.1) * Math.PI * 2);
+    const bushScale = 0.55 + seededValue(i * 4.7) * 0.45;
+    scale.set(1.1 * bushScale, 0.76 * bushScale, 0.9 * bushScale);
+    matrix.compose(position, rotation, scale);
+    bushes.setMatrixAt(bushCount, matrix);
+    bushCount += 1;
+  }
+  bushes.count = bushCount;
+  bushes.instanceMatrix.needsUpdate = true;
+  bushes.castShadow = true;
+  bushes.receiveShadow = true;
+  vegetation.add(bushes);
+
+  const flowerGeometry = new THREE.ConeGeometry(0.08, 0.24, 5);
+  const flowerMaterial = new THREE.MeshStandardMaterial({
+    color: '#e7c7a0',
+    emissive: '#3d2f26',
+    emissiveIntensity: 0.22,
+    roughness: 0.8,
+  });
+  const flowers = new THREE.InstancedMesh(flowerGeometry, flowerMaterial, 24);
+  let flowerCount = 0;
+  for (let i = 0; i < 24; i += 1) {
+    const x = -34 + seededValue(i * 6.7 + 14) * 68;
+    const z = -34 + seededValue(i * 7.9 + 21) * 68;
+    if (isInsideLake(x, z) || terrainHeight(x, z) < 0.1 || terrainHeight(x, z) > 2.4) continue;
+    position.set(x, terrainHeight(x, z) + 0.13, z);
+    rotation.setFromAxisAngle(new THREE.Vector3(0, 1, 0), seededValue(i * 2.7) * Math.PI * 2);
+    scale.setScalar(0.7 + seededValue(i * 4.9) * 0.5);
+    matrix.compose(position, rotation, scale);
+    flowers.setMatrixAt(flowerCount, matrix);
+    flowerCount += 1;
+  }
+  flowers.count = flowerCount;
+  flowers.instanceMatrix.needsUpdate = true;
+  vegetation.add(flowers);
+  scene.add(vegetation);
+}
+
 function addHabitatDetails(scene: THREE.Scene) {
   const details = new THREE.Group();
   const rockGeometry = new THREE.DodecahedronGeometry(0.45, 0);
-  const rockColors = ['#6f7780', '#8d8170', '#596a68', '#9c927e'];
+  const rockMaterials = ['#6f7780', '#8d8170', '#596a68', '#9c927e'].map(
+    (color) => new THREE.MeshStandardMaterial({ color, roughness: 1, flatShading: true }),
+  );
   let rockIndex = 0;
+  const placeRock = (x: number, z: number, seed: number) => {
+    if (isInsideLake(x, z)) return;
+    const scale = 0.34 + seededValue(seed + 7) * 0.72;
+    const rock = new THREE.Mesh(rockGeometry, rockMaterials[rockIndex % rockMaterials.length]);
+    rock.position.set(x, terrainHeight(x, z) + scale * 0.3, z);
+    rock.scale.set(scale * 1.2, scale * (0.55 + (seed % 3) * 0.14), scale);
+    rock.rotation.set(seed * 0.37, seed * 0.71, seed * 0.19);
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    details.add(rock);
+    rockIndex += 1;
+  };
+
   for (const patch of ROCK_PATCHES) {
     for (let i = 0; i < patch.count; i += 1) {
-      const seed = rockIndex + i * 17;
+      const seed = rockIndex * 13 + i * 17 + 5;
       const angle = seed * 2.31;
-      const radius = 0.28 + ((seed * 13) % 71) / 100;
-      const x = patch.x + Math.cos(angle) * patch.radiusX * radius;
-      const z = patch.z + Math.sin(angle) * patch.radiusZ * radius;
-      if (isInsideLake(x, z)) continue;
-      const scale = 0.38 + ((seed * 7) % 9) / 18;
-      const rock = new THREE.Mesh(
-        rockGeometry,
-        new THREE.MeshStandardMaterial({ color: rockColors[rockIndex % rockColors.length], roughness: 1, flatShading: true }),
+      const radius = 0.22 + seededValue(seed * 1.7) * 0.8;
+      placeRock(
+        patch.x + Math.cos(angle) * patch.radiusX * radius,
+        patch.z + Math.sin(angle) * patch.radiusZ * radius,
+        seed,
       );
-      rock.position.set(x, terrainHeight(x, z) + scale * 0.3, z);
-      rock.scale.set(scale * 1.2, scale * (0.55 + (seed % 3) * 0.14), scale);
-      rock.rotation.set(seed * 0.37, seed * 0.71, seed * 0.19);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      details.add(rock);
-      rockIndex += 1;
+    }
+  }
+  for (const [lakeIndex, lake] of LAKES.entries()) {
+    for (let i = 0; i < 4; i += 1) {
+      const seed = lakeIndex * 41 + i * 19 + 11;
+      const angle = seededValue(seed) * Math.PI * 2;
+      const distance = 1.02 + seededValue(seed + 3) * 0.18;
+      const localX = Math.cos(angle) * lake.radiusX * distance;
+      const localZ = Math.sin(angle) * lake.radiusZ * distance;
+      const cos = Math.cos(lake.rotation);
+      const sin = Math.sin(lake.rotation);
+      placeRock(lake.x + localX * cos - localZ * sin, lake.z + localX * sin + localZ * cos, seed);
     }
   }
 
@@ -269,40 +552,78 @@ function addHabitatDetails(scene: THREE.Scene) {
   details.add(marker);
   scene.add(details);
   addWaterBodies(scene);
+  addVegetation(scene);
 }
 
 function makePlayer() {
   const player = new THREE.Group();
   player.name = 'Explorer';
-  const suit = new THREE.MeshStandardMaterial({ color: '#d3d9d0', roughness: 0.75, metalness: 0.12 });
-  const darkSuit = new THREE.MeshStandardMaterial({ color: '#33434a', roughness: 0.82, metalness: 0.1 });
-  const visor = new THREE.MeshStandardMaterial({ color: '#6ee6e1', emissive: '#2e686b', emissiveIntensity: 0.55, roughness: 0.2, metalness: 0.45 });
+  const suit = new THREE.MeshStandardMaterial({ color: '#d6ddd5', roughness: 0.7, metalness: 0.14 });
+  const darkSuit = new THREE.MeshStandardMaterial({ color: '#2f4249', roughness: 0.78, metalness: 0.16 });
+  const trim = new THREE.MeshStandardMaterial({ color: '#78979a', roughness: 0.52, metalness: 0.28 });
+  const visor = new THREE.MeshStandardMaterial({ color: '#78eee5', emissive: '#2d7778', emissiveIntensity: 0.58, roughness: 0.16, metalness: 0.5 });
+  const accent = new THREE.MeshStandardMaterial({ color: '#c9eee0', emissive: '#39726e', emissiveIntensity: 0.42, roughness: 0.32, metalness: 0.35 });
 
-  const hips = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.42, 0.43), darkSuit);
-  hips.position.y = 1.08;
-  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.92, 1.05, 0.52), suit);
-  torso.position.y = 1.78;
-  torso.rotation.z = -0.03;
-  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.36, 0.55), darkSuit);
-  chest.position.set(0, 1.88, -0.03);
-  const head = new THREE.Mesh(new THREE.IcosahedronGeometry(0.43, 1), suit);
-  head.position.y = 2.65;
-  const visorMesh = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.2, 0.08), visor);
-  visorMesh.position.set(0, 2.67, -0.4);
-  const armL = new THREE.Mesh(new THREE.CapsuleGeometry(0.16, 0.65, 3, 6), suit);
-  const armR = armL.clone();
-  armL.position.set(-0.61, 1.79, 0);
-  armR.position.set(0.61, 1.79, 0);
-  const legL = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.72, 3, 6), darkSuit);
-  const legR = legL.clone();
-  legL.position.set(-0.24, 0.55, 0);
-  legR.position.set(0.24, 0.55, 0);
-  const bootL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.52), darkSuit);
-  const bootR = bootL.clone();
-  bootL.position.set(-0.24, 0.12, -0.1);
-  bootR.position.set(0.24, 0.12, -0.1);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 0.66, 5, 10), suit);
+  torso.position.y = 1.77;
+  torso.scale.z = 0.66;
+  const hips = new THREE.Mesh(new THREE.CapsuleGeometry(0.34, 0.25, 4, 8), darkSuit);
+  hips.position.y = 1.05;
+  hips.scale.z = 0.7;
 
-  player.add(hips, torso, chest, head, visorMesh, armL, armR, legL, legR, bootL, bootR);
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.38, 0.08), darkSuit);
+  chest.position.set(0, 1.88, -0.34);
+  const chestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.025), accent);
+  chestPanel.position.set(0, 1.9, -0.39);
+  const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 6), trim);
+  const shoulderR = shoulderL.clone();
+  shoulderL.position.set(-0.53, 2.09, 0);
+  shoulderR.position.set(0.53, 2.09, 0);
+
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.2, 0.18, 8), darkSuit);
+  neck.position.y = 2.35;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.43, 12, 8), suit);
+  head.position.y = 2.69;
+  head.scale.set(0.95, 1.05, 0.9);
+  const visorMesh = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 6, 0, Math.PI * 2, 0.2, Math.PI * 0.45), visor);
+  visorMesh.position.set(0, 2.7, -0.34);
+  visorMesh.scale.set(1.18, 0.58, 0.18);
+  const helmetBand = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.035, 5, 12, Math.PI), trim);
+  helmetBand.rotation.x = Math.PI / 2;
+  helmetBand.position.set(0, 2.72, 0);
+
+  const armGeometry = new THREE.CapsuleGeometry(0.14, 0.64, 4, 8);
+  const armL = new THREE.Mesh(armGeometry, suit);
+  const armR = new THREE.Mesh(armGeometry, suit);
+  armL.position.set(-0.62, 1.78, 0);
+  armR.position.set(0.62, 1.78, 0);
+  armL.rotation.z = -0.08;
+  armR.rotation.z = 0.08;
+  const gloveGeometry = new THREE.SphereGeometry(0.17, 8, 6);
+  const gloveL = new THREE.Mesh(gloveGeometry, darkSuit);
+  const gloveR = new THREE.Mesh(gloveGeometry, darkSuit);
+  gloveL.position.set(-0.64, 1.35, 0);
+  gloveR.position.set(0.64, 1.35, 0);
+
+  const legGeometry = new THREE.CapsuleGeometry(0.17, 0.64, 4, 8);
+  const legL = new THREE.Mesh(legGeometry, darkSuit);
+  const legR = new THREE.Mesh(legGeometry, darkSuit);
+  legL.position.set(-0.23, 0.58, 0);
+  legR.position.set(0.23, 0.58, 0);
+  const bootGeometry = new THREE.BoxGeometry(0.3, 0.22, 0.56);
+  const bootL = new THREE.Mesh(bootGeometry, darkSuit);
+  const bootR = new THREE.Mesh(bootGeometry, darkSuit);
+  bootL.position.set(-0.23, 0.12, -0.1);
+  bootR.position.set(0.23, 0.12, -0.1);
+
+  const backpack = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.76, 0.2), trim);
+  backpack.position.set(0, 1.72, 0.31);
+  const packLight = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.25, 0.025), accent);
+  packLight.position.set(0, 1.76, 0.43);
+  player.add(
+    hips, torso, chest, chestPanel, shoulderL, shoulderR, neck, head, visorMesh, helmetBand,
+    armL, armR, gloveL, gloveR, legL, legR, bootL, bootR, backpack, packLight,
+  );
   player.userData.limbs = { armL, armR, legL, legR };
   player.traverse((object) => {
     if (object instanceof THREE.Mesh) {
@@ -351,7 +672,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
     if (!canvas) return undefined;
     const scene = new THREE.Scene();
     scene.background = new THREE.Color('#8baeb1');
-    scene.fog = new THREE.Fog('#8baeb1', 34, 92);
+    scene.fog = new THREE.Fog('#8baeb1', 38, 98);
     const camera = new THREE.PerspectiveCamera(54, 1, 0.1, 150);
     const renderer = new THREE.WebGLRenderer({
       canvas,
@@ -359,13 +680,17 @@ export function GameWorld({ onExit }: GameWorldProps) {
       powerPreference: 'high-performance',
       preserveDrawingBuffer: true,
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.35));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
 
+    const skyDome = makeSkyDome();
+    const stars = makeStarField();
+    const clouds = makeClouds();
+    scene.add(skyDome.mesh, stars, clouds);
     const hemi = new THREE.HemisphereLight('#d8f0e8', '#435c55', 1.55);
     scene.add(hemi);
     const sun = new THREE.DirectionalLight('#fff0cf', 3.1);
@@ -379,7 +704,25 @@ export function GameWorld({ onExit }: GameWorldProps) {
     sun.shadow.camera.near = 1;
     sun.shadow.camera.far = 85;
     scene.add(sun);
-    scene.add(new THREE.AmbientLight('#8aa7c0', 0.22));
+    const moonLight = new THREE.DirectionalLight('#9bb8e8', 0.08);
+    moonLight.position.set(24, 28, -18);
+    scene.add(moonLight);
+    const ambient = new THREE.AmbientLight('#8aa7c0', 0.22);
+    scene.add(ambient);
+    const celestialGeometry = new THREE.SphereGeometry(1, 14, 10);
+    const sunOrb = new THREE.Mesh(
+      celestialGeometry,
+      new THREE.MeshBasicMaterial({ color: '#fff1bb', transparent: true, opacity: 0.94 }),
+    );
+    sunOrb.name = 'Sun';
+    sunOrb.scale.setScalar(1.7);
+    const moonOrb = new THREE.Mesh(
+      celestialGeometry,
+      new THREE.MeshBasicMaterial({ color: '#d9e6ff', transparent: true, opacity: 0.92 }),
+    );
+    moonOrb.name = 'Moon';
+    moonOrb.scale.setScalar(1.2);
+    scene.add(sunOrb, moonOrb);
     scene.add(makeTerrain());
     addHabitatDetails(scene);
 
@@ -398,13 +741,29 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const cameraLookDirection = new THREE.Vector3();
     const cameraLookMatrix = new THREE.Matrix4();
     const cameraLookQuaternion = new THREE.Quaternion();
+    const celestialPosition = new THREE.Vector3();
     const skyColor = new THREE.Color();
     const daySky = new THREE.Color('#8baeb1');
     const nightSky = new THREE.Color('#202d4a');
+    const sunsetSky = new THREE.Color('#c68b78');
+    const dayTop = new THREE.Color('#4f879f');
+    const nightTop = new THREE.Color('#101629');
+    const sunsetTop = new THREE.Color('#8f5e6d');
+    const dayHorizon = new THREE.Color('#d1c08e');
+    const nightHorizon = new THREE.Color('#354260');
+    const sunsetHorizon = new THREE.Color('#d99b75');
+    const dayBottom = new THREE.Color('#67858a');
+    const nightBottom = new THREE.Color('#1f3451');
+    const sunsetBottom = new THREE.Color('#765969');
+    const skyTop = new THREE.Color();
+    const skyHorizon = new THREE.Color();
+    const skyBottom = new THREE.Color();
+    const cloudMaterial = clouds.userData.cloudMaterial as THREE.MeshLambertMaterial;
     let worldTime = 0.18;
     let grounded = true;
     let jumpQueued = false;
     let walkTime = 0;
+    let landingPulse = 0;
     let last = performance.now();
 
     const resize = () => {
@@ -445,13 +804,40 @@ export function GameWorld({ onExit }: GameWorldProps) {
       last = now;
       worldTime = (worldTime + delta / 150) % 1;
       const sunAngle = worldTime * Math.PI * 2;
-      const daylight = THREE.MathUtils.clamp(Math.sin(sunAngle) * 0.5 + 0.5, 0.08, 1);
+      const sunAltitude = Math.sin(sunAngle);
+      const daylight = THREE.MathUtils.clamp(sunAltitude * 0.5 + 0.5, 0.08, 1);
+      const nightFactor = THREE.MathUtils.clamp((0.22 - sunAltitude) / 0.62, 0, 1);
+      const twilight = THREE.MathUtils.clamp(1 - Math.abs(sunAltitude) / 0.38, 0, 1) * (1 - nightFactor * 0.72);
       skyColor.lerpColors(nightSky, daySky, daylight);
+      skyColor.lerp(sunsetSky, twilight * 0.42);
       scene.background = skyColor;
       if (scene.fog instanceof THREE.Fog) scene.fog.color.copy(skyColor);
-      sun.position.set(Math.cos(sunAngle) * 30, 10 + daylight * 30, Math.sin(sunAngle) * 25);
-      sun.intensity = 0.6 + daylight * 2.5;
-      hemi.intensity = 0.7 + daylight * 0.85;
+      skyTop.lerpColors(nightTop, dayTop, daylight).lerp(sunsetTop, twilight * 0.44);
+      skyHorizon.lerpColors(nightHorizon, dayHorizon, daylight).lerp(sunsetHorizon, twilight * 0.58);
+      skyBottom.lerpColors(nightBottom, dayBottom, daylight).lerp(sunsetBottom, twilight * 0.3);
+      skyDome.uniforms.topColor.value.copy(skyTop);
+      skyDome.uniforms.horizonColor.value.copy(skyHorizon);
+      skyDome.uniforms.bottomColor.value.copy(skyBottom);
+      celestialPosition.set(Math.cos(sunAngle) * 62, 12 + sunAltitude * 43, Math.sin(sunAngle) * 62);
+      sun.position.copy(celestialPosition);
+      sunOrb.position.copy(celestialPosition);
+      moonOrb.position.copy(celestialPosition).multiplyScalar(-1);
+      moonLight.position.copy(moonOrb.position);
+      sun.intensity = 0.12 + daylight * 2.65;
+      moonLight.intensity = 0.04 + nightFactor * 0.42;
+      ambient.intensity = 0.16 + daylight * 0.23 + nightFactor * 0.1;
+      hemi.intensity = 0.66 + daylight * 0.92 + nightFactor * 0.08;
+      (stars.material as THREE.PointsMaterial).opacity = nightFactor * 0.86;
+      stars.rotation.y = worldTime * 0.035;
+      clouds.visible = daylight > 0.09;
+      cloudMaterial.opacity = 0.05 + daylight * 0.13;
+      clouds.children.forEach((cloud) => {
+        const baseX = cloud.userData.baseX as number;
+        const speed = cloud.userData.speed as number;
+        const phase = cloud.userData.phase as number;
+        cloud.position.x = ((baseX + worldTime * 84 * speed + phase) % 112) - 56;
+        cloud.position.z += Math.sin(worldTime * 2.4 + phase) * delta * 0.008;
+      });
       if (!pausedRef.current) {
         const inputX = Number(keys.current.right) - Number(keys.current.left) + joystickRef.current.x;
         const inputY = Number(keys.current.forward) - Number(keys.current.back) - joystickRef.current.y;
@@ -475,31 +861,39 @@ export function GameWorld({ onExit }: GameWorldProps) {
         const moving = movement.lengthSq() > 0.001;
         const speed = keys.current.run ? 6.8 : 4.1;
         if (moving) movement.normalize().multiplyScalar(speed);
-        velocity.x = THREE.MathUtils.damp(velocity.x, movement.x, moving ? 10 : 14, delta);
-        velocity.z = THREE.MathUtils.damp(velocity.z, movement.z, moving ? 10 : 14, delta);
+        const acceleration = moving ? (keys.current.run ? 8.2 : 9.4) : 13.5;
+        velocity.x = THREE.MathUtils.damp(velocity.x, movement.x, acceleration, delta);
+        velocity.z = THREE.MathUtils.damp(velocity.z, movement.z, acceleration, delta);
         if (jumpQueued && grounded) {
-          velocity.y = 7.2;
+          velocity.y = 7.4;
           grounded = false;
         }
         jumpQueued = false;
-        velocity.y -= 17 * delta;
+        velocity.y -= 17.5 * delta;
         player.position.x = THREE.MathUtils.clamp(player.position.x + velocity.x * delta, -39, 39);
         player.position.z = THREE.MathUtils.clamp(player.position.z + velocity.z * delta, -39, 39);
         const floor = terrainHeight(player.position.x, player.position.z);
         player.position.y += velocity.y * delta;
         if (player.position.y <= floor) {
+          if (!grounded && velocity.y < -2) landingPulse = Math.min(1, Math.abs(velocity.y) * 0.025);
           player.position.y = floor;
           velocity.y = 0;
           grounded = true;
         }
         if (moving) {
-          walkTime += delta * (keys.current.run ? 11 : 7);
+          walkTime += delta * (keys.current.run ? 10.5 : 6.8);
           const limbs = player.userData.limbs as Record<string, THREE.Object3D>;
-          limbs.armL.rotation.x = Math.sin(walkTime) * 0.48;
-          limbs.armR.rotation.x = -Math.sin(walkTime) * 0.48;
-          limbs.legL.rotation.x = -Math.sin(walkTime) * 0.42;
-          limbs.legR.rotation.x = Math.sin(walkTime) * 0.42;
-          player.rotation.y = Math.atan2(-movement.x, -movement.z);
+          const gait = Math.sin(walkTime) * (grounded ? 0.34 : 0.11);
+          limbs.armL.rotation.x = gait;
+          limbs.armR.rotation.x = -gait;
+          limbs.legL.rotation.x = -gait * 0.82;
+          limbs.legR.rotation.x = gait * 0.82;
+          const targetRotation = Math.atan2(-movement.x, -movement.z);
+          const rotationDelta = Math.atan2(
+            Math.sin(targetRotation - player.rotation.y),
+            Math.cos(targetRotation - player.rotation.y),
+          );
+          player.rotation.y += rotationDelta * (1 - Math.exp(-11 * delta));
         } else {
           const limbs = player.userData.limbs as Record<string, THREE.Object3D>;
           limbs.armL.rotation.x = THREE.MathUtils.damp(limbs.armL.rotation.x, 0, 8, delta);
@@ -507,10 +901,16 @@ export function GameWorld({ onExit }: GameWorldProps) {
           limbs.legL.rotation.x = THREE.MathUtils.damp(limbs.legL.rotation.x, 0, 8, delta);
           limbs.legR.rotation.x = THREE.MathUtils.damp(limbs.legR.rotation.x, 0, 8, delta);
         }
+        landingPulse = THREE.MathUtils.damp(landingPulse, 0, 10, delta);
+        const landingScale = 1 - landingPulse * 0.08;
+        player.scale.y = THREE.MathUtils.damp(player.scale.y, landingScale, 15, delta);
+        const widthScale = 1 + landingPulse * 0.05;
+        player.scale.x = THREE.MathUtils.damp(player.scale.x, widthScale, 15, delta);
+        player.scale.z = THREE.MathUtils.damp(player.scale.z, widthScale, 15, delta);
       }
 
       player.visible = !firstPersonRef.current;
-      target.set(player.position.x, player.position.y + PLAYER_HEIGHT * 0.48, player.position.z);
+      target.set(player.position.x, player.position.y + PLAYER_HEIGHT * 0.74, player.position.z);
       const { yaw, pitch, distance } = cameraAngles.current;
       if (firstPersonRef.current) {
         desiredCamera.set(player.position.x, player.position.y + 2.28, player.position.z);
@@ -616,7 +1016,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement('a');
-    link.download = `exovanta-prototype-03-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
+    link.download = `exovanta-prototype-04-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`;
     link.href = canvas.toDataURL('image/png');
     link.click();
   };
@@ -636,7 +1036,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
       <div className="world-topbar">
         <div className="world-brand" data-testid="status-habitat">
           <span className="world-brand-mark" aria-hidden="true" />
-          <div><strong>EXOVANTA</strong><span>HABITAT 01 / FIELD TEST</span></div>
+          <div><strong>EXOVANTA</strong><span>HABITAT 01 / PROTOTYPE 0.4</span></div>
         </div>
         <div className="world-status"><span className="status-dot" />OFFLINE SIMULATION</div>
         <button
@@ -691,7 +1091,7 @@ export function GameWorld({ onExit }: GameWorldProps) {
       {paused && (
         <div className="pause-overlay" role="dialog" aria-modal="true" aria-label="Simulation paused">
           <div className="pause-card">
-            <p className="pause-kicker">FIELD TEST / HOLD</p>
+            <p className="pause-kicker">PROTOTYPE 0.4 / HOLD</p>
             <h2 className="pause-title">Paused</h2>
             <p className="pause-copy">The habitat is waiting. Resume your walk or return to the launch deck.</p>
             <div className="pause-actions">

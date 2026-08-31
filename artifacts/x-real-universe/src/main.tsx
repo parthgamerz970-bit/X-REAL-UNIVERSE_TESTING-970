@@ -3,11 +3,11 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { ErrorBoundary } from '@/components/error-boundary';
 
-import './index.css?prototype-03-world';
+import './index.css?prototype-04-world';
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    void navigator.serviceWorker.register('./service-worker.js?prototype-03-world', {
+    void navigator.serviceWorker.register('./service-worker.js?prototype-04-world', {
       scope: './',
       updateViaCache: 'none',
     });

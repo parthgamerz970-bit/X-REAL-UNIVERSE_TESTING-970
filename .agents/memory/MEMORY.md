@@ -1,3 +1,4 @@
 - [Workspace package installs](workspace-package-installs.md) — install artifact-specific npm packages with a filtered pnpm command so dependencies stay scoped to the target package.
 - [Offline cache versioning](offline-cache-versioning.md) — advance service-worker cache identity alongside user-facing offline UI changes.
 - [Imported artifact registration](artifact-registration.md) — cloned runnable artifacts may need registration before their preview workflow and pane become available.
+- [WebGL preview limitation](webgl-preview-limitation.md) — the hosted screenshot browser may lack a WebGL context even when the app builds correctly.

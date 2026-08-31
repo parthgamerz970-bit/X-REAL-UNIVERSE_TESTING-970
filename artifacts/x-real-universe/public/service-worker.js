@@ -1,4 +1,4 @@
-const CACHE_NAME = 'exovanta-v5-prototype-03-world';
+const CACHE_NAME = 'exovanta-v6-prototype-04-world';
 const CORE_ASSETS = [
   './',
   './index.html',
